@@ -8,3 +8,7 @@ tools/
 bot.pid
 bot.*.log
 exports/
+.env.*
+!.env.example
+tests/tmp*/
+*.pyc

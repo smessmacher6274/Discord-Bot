@@ -56,6 +56,7 @@ class ImageTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('private-key', message)
         self.assertIn('declined', api_error(400, {'error': {'code': 'content_policy_violation'}}))
 
+@unittest.skip('AI command disabled for deployment; tests retained for re-enabling it later.')
 class ImageCommandTests(unittest.IsolatedAsyncioTestCase):
     def interaction(self, attach=True):
         return SimpleNamespace(user=SimpleNamespace(id=42), guild=SimpleNamespace(filesize_limit=10 * 1024 * 1024),
@@ -66,7 +67,7 @@ class ImageCommandTests(unittest.IsolatedAsyncioTestCase):
         interaction = self.interaction()
         with patch.object(main.bot, 'is_owner', AsyncMock(return_value=True)), \
              patch.object(main.bot.images, 'generate', AsyncMock(return_value=GeneratedImage(JPEG))) as generate:
-            await main.generateimage.callback(interaction, 'A dragon')
+            await main.show_me.callback(interaction, 'A dragon')
         generate.assert_awaited_once_with('A dragon', 42, max_bytes=8 * 1024 * 1024)
         self.assertEqual(interaction.followup.send.call_args.kwargs['file'].filename, 'generated-image.jpg')
 
@@ -75,19 +76,25 @@ class ImageCommandTests(unittest.IsolatedAsyncioTestCase):
              patch('main.config.IMAGE_ALLOWED_USER_IDS', set()), \
              patch.object(main.bot.images, 'generate', AsyncMock()) as generate:
             with self.assertRaisesRegex(ValueError, 'limited'):
-                await main.generateimage.callback(self.interaction(), 'A dragon')
+                await main.show_me.callback(self.interaction(), 'A dragon')
         generate.assert_not_called()
 
     async def test_missing_attachment_permission_avoids_generation(self):
         with patch.object(main.bot, 'is_owner', AsyncMock(return_value=True)), \
              patch.object(main.bot.images, 'generate', AsyncMock()) as generate:
             with self.assertRaisesRegex(ValueError, 'Attach Files'):
-                await main.generateimage.callback(self.interaction(False), 'A dragon')
+                await main.show_me.callback(self.interaction(False), 'A dragon')
         generate.assert_not_called()
 
     async def test_allowed_user_can_generate(self):
         with patch('main.config.IMAGE_ALLOWED_USER_IDS', {42}), \
              patch.object(main.bot, 'is_owner', AsyncMock(return_value=False)), \
              patch.object(main.bot.images, 'generate', AsyncMock(return_value=GeneratedImage(JPEG))) as generate:
-            await main.generateimage.callback(self.interaction(), 'A dragon')
+            await main.show_me.callback(self.interaction(), 'A dragon')
         generate.assert_awaited_once()
+
+    def test_command_uses_computer_show_me_path(self):
+        root = main.bot.tree.get_command('computer')
+        self.assertIsNotNone(root)
+        self.assertEqual(root.get_command('show').get_command('me').qualified_name, 'computer show me')
+        self.assertIsNone(main.bot.tree.get_command('generateimage'))

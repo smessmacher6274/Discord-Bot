@@ -93,10 +93,9 @@ Provider interfaces in `providers/base.py` support later audited integrations.
 
 ## Commands and reliability
 
-`/generateimage prompt` generates an AI image in the text channel, independently of
-music. It requires an OpenAI API key and Attach Files permission. API usage is billed
-separately; the command is owner-only unless users are explicitly allowed in `.env`.
-See `IMAGE_SETUP.md`. One generation at a time, with a 60-second per-user cooldown.
+AI image generation is disabled for deployment. Its command and startup wiring are
+commented out; the service implementation is retained for later. No OpenAI API key
+or image-generation billing is needed to run this bot.
 
 `/spotifyplaylist link` queues and plays a Spotify playlist automatically and returns
 a private export file. `/play query` also accepts Spotify playlist URLs. Use

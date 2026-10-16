@@ -1,11 +1,9 @@
 # Implementation status
 
-AI images: `/generateimage prompt` generates one 1024×1024 JPEG using the OpenAI
-Images API and sends a Discord attachment independently of voice playback.
-Owner-only by default, with an explicit allowed-user list, one concurrent request,
-and per-user cooldown. Credentials and model are read from .env on each request.
-Sixty-three offline tests pass; live image generation awaits an API key, API account
-access/billing, and Attach Files permission. See IMAGE_SETUP.md.
+AI images are disabled for deployment: command registration, image-client startup,
+and API configuration are commented out. Service source and its offline tests are
+retained for later; command tests are skipped while disabled. No OpenAI credentials
+or image-generation API calls are needed by the running bot.
 
 Implemented: seven slash commands, approved local catalog search, exact source URL
 resolution, ordered catalog playlists, independent server state, queue locking,

@@ -14,7 +14,8 @@ from music.playlist_import import import_playlist, MAX_BYTES
 from providers.youtube import YouTube
 from providers.router import ProviderRouter
 from music.spotify_session import SpotifySession
-from services.image_generation import ImageGenerator
+# AI image generation disabled for deployment; implementation kept for later.
+# from services.image_generation import ImageGenerator
 
 provider = ProviderRouter(LicensedAudio(config.CATALOG, config.AUDIO_ROOT), YouTube(config.YOUTUBE_NODE_PATH))
 resolver = Resolver(provider)
@@ -25,7 +26,7 @@ class Bot(commands.Bot):
                          allowed_mentions=discord.AllowedMentions.none())
         self.players = {}
         self.spotify = SpotifySession(config.SPOTIFY_CLIENT_ID)
-        self.images = ImageGenerator(config.ROOT / '.env', config.OPENAI_API_KEY, config.IMAGE_MODEL)
+        # self.images = ImageGenerator(config.ROOT / '.env', config.OPENAI_API_KEY, config.IMAGE_MODEL)
 
     async def setup_hook(self):
         # Guild registration makes commands available immediately in every installed server.
@@ -143,23 +144,29 @@ async def pause(interaction: discord.Interaction):
         player.voice.pause()
     await interaction.response.send_message('Paused.')
 
-@bot.tree.command(description='Generate an AI image from a prompt')
-@app_commands.guild_only()
-@app_commands.describe(prompt='Describe the image you want to generate')
-@app_commands.checks.cooldown(1, 60, key=lambda i: i.user.id)
-async def generateimage(interaction: discord.Interaction, prompt: str):
-    if interaction.user.id not in config.IMAGE_ALLOWED_USER_IDS and not await bot.is_owner(interaction.user):
-        raise ValueError('Image generation is limited to the bot owner and users listed in IMAGE_ALLOWED_USER_IDS because API usage is billed.')
-    if not interaction.app_permissions.attach_files:
-        raise ValueError('Give the bot Attach Files permission in this channel to return generated images.')
-    await interaction.response.defer(thinking=True)
-    limit = min(interaction.guild.filesize_limit, 8 * 1024 * 1024)
-    generated = await bot.images.generate(prompt, interaction.user.id, max_bytes=limit)
-    file = discord.File(io.BytesIO(generated.data), filename=generated.filename)
-    try:
-        await interaction.followup.send('AI-generated image:', file=file, allowed_mentions=discord.AllowedMentions.none())
-    finally:
-        file.close()
+# AI image command disabled. Uncomment this block and the startup/config wiring to restore.
+# computer = app_commands.Group(name='computer', description='Computer commands', guild_only=True)
+# computer_show = app_commands.Group(name='show', description='Ask the computer to show an image', parent=computer)
+#
+# @computer_show.command(name='me', description='Generate an AI image from a prompt')
+# @app_commands.guild_only()
+# @app_commands.describe(prompt='Describe the image you want to generate')
+# @app_commands.checks.cooldown(1, 60, key=lambda i: i.user.id)
+# async def show_me(interaction: discord.Interaction, prompt: str):
+#     if interaction.user.id not in config.IMAGE_ALLOWED_USER_IDS and not await bot.is_owner(interaction.user):
+#         raise ValueError('Image generation is limited to the bot owner and users listed in IMAGE_ALLOWED_USER_IDS because API usage is billed.')
+#     if not interaction.app_permissions.attach_files:
+#         raise ValueError('Give the bot Attach Files permission in this channel to return generated images.')
+#     await interaction.response.defer(thinking=True)
+#     limit = min(interaction.guild.filesize_limit, 8 * 1024 * 1024)
+#     generated = await bot.images.generate(prompt, interaction.user.id, max_bytes=limit)
+#     file = discord.File(io.BytesIO(generated.data), filename=generated.filename)
+#     try:
+#         await interaction.followup.send('AI-generated image:', file=file, allowed_mentions=discord.AllowedMentions.none())
+#     finally:
+#         file.close()
+#
+# bot.tree.add_command(computer)
 
 @bot.tree.command(description='Play a Spotify playlist or export its file (bot owner only)')
 @app_commands.guild_only()

@@ -1,6 +1,11 @@
 # AI image command
 
-Use `/generateimage prompt:A dragon guarding a moonlit castle` to generate one
+**Disabled for deployment.** The command, client initialization, and configuration
+are commented out in main.py, config.py, and .env.example. The service source and
+tests below are retained for future use. These instructions describe that disabled
+feature; it is not available in Discord until explicitly re-enabled.
+
+Use `/computer show me prompt:A dragon guarding a moonlit castle` to generate one
 1024×1024 JPEG and return it as a Discord attachment. No voice channel is required.
 Generation runs asynchronously and does not stop or pause music.
 
