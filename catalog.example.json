@@ -1,0 +1,7 @@
+{
+  "tracks": [
+    {"id": "test", "title": "Test tone", "artist": "Local", "duration": 3,
+     "file": "test.wav", "authorized": true}
+  ],
+  "playlists": {"demo": ["test"]}
+}

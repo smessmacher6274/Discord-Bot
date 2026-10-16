@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+audio/
+catalog.json
+.tmp/
+tools/
+bot.pid
+bot.*.log
+exports/
