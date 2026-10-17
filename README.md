@@ -93,6 +93,10 @@ Provider interfaces in `providers/base.py` support later audited integrations.
 
 ## Commands and reliability
 
+`/abilities character` provides character autocomplete and a private ability dropdown
+using the campaign's Google Sheet. Select an ability for its exact description; use
+Refresh to reload edits. See `DND_SETUP.md` for the three tab headers and configuration.
+
 AI image generation is disabled for deployment. Its command and startup wiring are
 commented out; the service implementation is retained for later. No OpenAI API key
 or image-generation billing is needed to run this bot.

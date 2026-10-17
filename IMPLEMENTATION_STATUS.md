@@ -1,5 +1,13 @@
 # Implementation status
 
+Homebrew D&D: `/abilities character` reads three campaign Sheet tabs, joins stable
+character/ability IDs, and displays descriptions in a private paginated dropdown.
+Character autocomplete, optional character notes, cached reads, a Refresh button,
+reference validation, and full-text attachments for long descriptions are implemented.
+Seventy-seven tests run: 72 pass, five archived image-command tests are skipped.
+The live Sheet assigns Bijuu Transformation to Ryujin; seven characters are loaded.
+See DND_SETUP.md. No game calculations or skill-tracker writes are included yet.
+
 AI images are disabled for deployment: command registration, image-client startup,
 and API configuration are commented out. Service source and its offline tests are
 retained for later; command tests are skipped while disabled. No OpenAI credentials

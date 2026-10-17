@@ -11,6 +11,7 @@ class RegistrationTests(unittest.IsolatedAsyncioTestCase):
             yield first
             yield second
         with patch.object(bot, 'fetch_guilds', return_value=guilds()), \
+             patch.object(bot.abilities, 'load', AsyncMock()), \
              patch.object(bot.tree, 'copy_global_to') as copy, \
              patch.object(bot.tree, 'sync', AsyncMock()) as sync:
             await bot.setup_hook()

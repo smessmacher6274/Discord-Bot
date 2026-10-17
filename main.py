@@ -14,6 +14,9 @@ from music.playlist_import import import_playlist, MAX_BYTES
 from providers.youtube import YouTube
 from providers.router import ProviderRouter
 from music.spotify_session import SpotifySession
+from dnd.abilities import AbilityService
+from dnd.commands import register_ability_commands
+from dnd.skills import SkillService, register_skill_commands
 # AI image generation disabled for deployment; implementation kept for later.
 # from services.image_generation import ImageGenerator
 
@@ -26,9 +29,19 @@ class Bot(commands.Bot):
                          allowed_mentions=discord.AllowedMentions.none())
         self.players = {}
         self.spotify = SpotifySession(config.SPOTIFY_CLIENT_ID)
+        self.abilities = AbilityService(config.DND_SHEET_ID, config.DND_CHARACTERS_GID,
+                                        config.DND_ABILITIES_GID, config.DND_CHARACTER_ABILITIES_GID)
+        register_ability_commands(self, self.abilities)
+        self.skills = SkillService(config.DND_SHEET_ID, config.DND_CHARACTERS_GID, config.DND_SKILLS_GID)
+        register_skill_commands(self, self.skills, self.abilities)
         # self.images = ImageGenerator(config.ROOT / '.env', config.OPENAI_API_KEY, config.IMAGE_MODEL)
 
     async def setup_hook(self):
+        if config.DND_SHEET_ID:
+            try:
+                await self.abilities.load()
+            except ValueError as error:
+                logging.warning('Ability catalog not loaded: %s', error)
         # Guild registration makes commands available immediately in every installed server.
         async for guild in self.fetch_guilds():
             await self.register_guild(guild)
