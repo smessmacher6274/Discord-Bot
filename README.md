@@ -35,6 +35,25 @@ ffmpeg -f lavfi -i "sine=frequency=440:duration=3" audio/test.wav
 Join a voice channel and use `/play Test tone`, `/play local:test`, or
 `/play playlist:demo`. Stop the process with Ctrl+C; voice connections are closed.
 
+## Start or restart from Bash
+
+From Git Bash, WSL (with Windows interoperability enabled), or Linux:
+
+```bash
+bash bot.sh          # Restart if running, otherwise start
+bash bot.sh start    # Start only if stopped
+bash bot.sh stop     # Shut down
+bash bot.sh status   # Show whether it is running
+```
+
+The script uses `.venv/Scripts/python.exe` on Windows or `.venv/bin/python`
+on Linux and works from any directory when called by its full path. The bot
+runs in the background, writes its PID to `bot.pid`, and saves output to
+timestamped `bot.*.stdout.log` and `bot.*.stderr.log` files. Startup checks
+that the process survives two seconds; check the logs for Discord login status.
+Stopping or restarting clears the in-memory music queues. Windows shutdown
+terminates the process; Linux first allows up to ten seconds for it to exit.
+
 ## Approved catalog
 
 ### YouTube video links

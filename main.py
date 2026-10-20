@@ -17,6 +17,9 @@ from music.spotify_session import SpotifySession
 from dnd.abilities import AbilityService
 from dnd.commands import register_ability_commands
 from dnd.skills import SkillService, register_skill_commands
+from dnd.damage import DamageService, register_damage_commands
+from dnd.relics import RelicService, register_relic_commands
+from dnd.loadout import LoadoutService, register_loadout_commands
 # AI image generation disabled for deployment; implementation kept for later.
 # from services.image_generation import ImageGenerator
 
@@ -34,6 +37,13 @@ class Bot(commands.Bot):
         register_ability_commands(self, self.abilities)
         self.skills = SkillService(config.DND_SHEET_ID, config.DND_CHARACTERS_GID, config.DND_SKILLS_GID)
         register_skill_commands(self, self.skills, self.abilities)
+        self.damage = DamageService(config.DND_SHEET_ID, config.DND_DAMAGE_RANGES_GID)
+        register_damage_commands(self, self.damage)
+        self.relics = RelicService(config.DND_SHEET_ID, config.DND_RELICS_GID)
+        register_relic_commands(self, self.relics)
+        self.loadouts = LoadoutService(config.DND_SHEET_ID, config.DND_CHARACTERS_GID,
+                                      config.DND_CHARACTER_RELICS_GID)
+        register_loadout_commands(self, self.loadouts)
         # self.images = ImageGenerator(config.ROOT / '.env', config.OPENAI_API_KEY, config.IMAGE_MODEL)
 
     async def setup_hook(self):
