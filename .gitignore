@@ -12,3 +12,4 @@ exports/
 !.env.example
 tests/tmp*/
 *.pyc
+data/

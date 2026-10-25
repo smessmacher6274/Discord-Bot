@@ -1,5 +1,39 @@
 # Homebrew ability lookup
 
+Use `/help` in Discord for the full private guide, including examples for every
+active command. Choose a topic from its menu, or use `/help topic:stats` directly.
+The help menu lasts ten minutes and needs no Sheet, voice, or API connection.
+
+## Character stats and enemy damage
+
+- `/stats view character:Ryujin` shows Health, Armor, and Stamina as current/baseline.
+- `/stats add character:Ryujin stat:Health amount:2` adds to current only.
+- `/stats subtract character:Ryujin stat:Health amount:3` subtracts from current only.
+- `/stats reset character:Ryujin` restores all saved baselines; optional `stat` resets just one.
+- `/stats baseline character:Ryujin stat:Stamina value:8` sets a baseline and resets current to match.
+- `/enemy create name:Guard health:30` creates an enemy. Health is optional for damage-only tracking.
+- `/enemy damage enemy:Guard character:Ryujin amount:7` logs damage and who dealt it.
+- `/enemy view enemy:Guard` shows damage totals and contributions; omit `enemy` to list enemy names.
+- `/enemy reset enemy:Guard` clears its damage totals and restores its original health.
+
+All tracker results are visible in the channel. Everyone can update trackers; no
+player ownership restrictions are configured. Data is isolated by Discord server.
+Names autocomplete; duplicate enemy names are rejected (use Guard 1, Guard 2, etc.).
+Damage amounts are the final damage you choose to record; armor does not automatically
+reduce damage, and rolling does not automatically modify trackers.
+
+Numeric Health, Armor, and Stamina values from Skills initialize missing baselines
+on first use. Missing values remain Not set. Changing the Sheet afterward does not
+overwrite saved current values or baselines; use `/stats baseline` to change them.
+Current values can exceed baseline or fall below zero. Add/subtract/reset do not
+modify Google Sheets or skill roll modifiers.
+
+Tracker data is stored in `data/tracker.sqlite3`, excluded from Git. It survives
+restarts on the same host. Back up this file while the bot is stopped and copy it
+to the same project-relative path when moving the bot to the Pi; a Git clone alone
+does not transfer tracker state. Do not run two hosts against separate copies and
+expect them to synchronize.
+
 `/loadout character:<Character ID>` privately lists all relics held by that character.
 Character autocomplete displays names and submits the corresponding Character ID;
 typing an exact character name also works. Create a Character Relics tab with

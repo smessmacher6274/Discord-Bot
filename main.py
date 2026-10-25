@@ -20,6 +20,8 @@ from dnd.skills import SkillService, register_skill_commands
 from dnd.damage import DamageService, register_damage_commands
 from dnd.relics import RelicService, register_relic_commands
 from dnd.loadout import LoadoutService, register_loadout_commands
+from dnd.tracker import Tracker, register_tracker_commands
+from dnd.help import register_help_command
 # AI image generation disabled for deployment; implementation kept for later.
 # from services.image_generation import ImageGenerator
 
@@ -31,12 +33,15 @@ class Bot(commands.Bot):
         super().__init__(command_prefix='!', intents=discord.Intents.default(),
                          allowed_mentions=discord.AllowedMentions.none())
         self.players = {}
+        register_help_command(self)
         self.spotify = SpotifySession(config.SPOTIFY_CLIENT_ID)
         self.abilities = AbilityService(config.DND_SHEET_ID, config.DND_CHARACTERS_GID,
                                         config.DND_ABILITIES_GID, config.DND_CHARACTER_ABILITIES_GID)
         register_ability_commands(self, self.abilities)
         self.skills = SkillService(config.DND_SHEET_ID, config.DND_CHARACTERS_GID, config.DND_SKILLS_GID)
         register_skill_commands(self, self.skills, self.abilities)
+        self.tracker = Tracker(config.ROOT / 'data' / 'tracker.sqlite3')
+        register_tracker_commands(self, self.tracker, self.skills)
         self.damage = DamageService(config.DND_SHEET_ID, config.DND_DAMAGE_RANGES_GID)
         register_damage_commands(self, self.damage)
         self.relics = RelicService(config.DND_SHEET_ID, config.DND_RELICS_GID)
