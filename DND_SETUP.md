@@ -128,6 +128,10 @@ Use `/signin character:Ryujin` to save your default for this server. Omit `chara
 from roll, skills, abilities, loadout, stats, and enemy damage commands to use it.
 `/roll skill:Willpower` also uses your default for skill suggestions. An explicit
 character overrides the default for that command. Discord does not visibly prefill fields.
-`/signedin` lists the server roster; `/signout` clears your sign-in. One user per
+`/party` lists the server roster; `/signout` clears your sign-in. One user per
 character and one character per user per server. Sign in again to switch. Sign-ins
 persist in `data/tracker.sqlite3` until sign-out or switching; back up this database.
+
+`/turnorder` displays the last initiative order without rerolling. It is saved per
+server in the tracker database and survives restarts. Party changes do not alter
+the saved order; run `/initiative` again when ready for a fresh order.

@@ -45,8 +45,10 @@ class SigninTests(unittest.IsolatedAsyncioTestCase):
         await self.bot.tree.get_command('signin').callback(self.interaction, 'Hero')
         self.assertEqual(await resolve_character(self.bot, self.interaction), 'A')
         self.assertEqual(await resolve_character(self.bot, self.interaction, 'Other'), 'Other')
-        await self.bot.tree.get_command('signedin').callback(self.interaction)
+        await self.bot.tree.get_command('party').callback(self.interaction)
         self.assertIn('Hero', self.interaction.followup.send.call_args.args[0])
+        self.assertIn('<@10>', self.interaction.followup.send.call_args.args[0])
+        self.assertIsNone(self.bot.tree.get_command('signedin'))
         await self.bot.tree.get_command('signout').callback(self.interaction)
         with self.assertRaisesRegex(ValueError, '/signin'):
             await resolve_character(self.bot, self.interaction)

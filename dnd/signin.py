@@ -47,9 +47,9 @@ def register_signin_commands(bot, tracker, character_service):
         await asyncio.to_thread(tracker.signout, interaction.guild_id, interaction.user.id)
         await interaction.followup.send('Signed out. Your saved character has been cleared.', ephemeral=True)
 
-    @bot.tree.command(name='signedin', description='List the characters and users signed in to this server')
+    @bot.tree.command(name='party', description='List the characters and users signed in to this server')
     @app_commands.guild_only()
-    async def signedin(interaction: discord.Interaction):
+    async def party(interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         rows = await asyncio.to_thread(tracker.signed_in, interaction.guild_id)
         catalog = await character_service.load() if rows else None

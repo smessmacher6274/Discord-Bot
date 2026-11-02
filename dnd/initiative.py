@@ -15,7 +15,7 @@ def initiative_order(roster, catalog, records):
         character = catalog.characters.get(identifier)
         if character is None:
             raise ValueError('A signed-in character was removed from the Sheet. '
-                             'Check /signedin and have that user /signout or /signin again.')
+                             'Check /party and have that user /signout or /signin again.')
         willpower = next((skill for skill in records.get(identifier, [])
                          if skill.name.strip().casefold() == 'willpower'), None)
         if willpower is None or not re.fullmatch(r'[+-]?[0-9]{1,9}', willpower.modifier):
@@ -49,5 +49,17 @@ def register_initiative_command(bot, tracker, skills):
                  f'(2d10: {first} + {second}; Willpower: {modifier:+d})'
                  for position, (character, first, second, modifier, total) in enumerate(results, 1)]
         lines.append('\nHighest total goes first. Ties are ordered alphabetically. '
-                     'Run /initiative again to roll a new order.')
-        await send_tracker(interaction, 'Initiative — Turn order', '\n'.join(lines))
+                     'Use /turnorder to view this order. Run /initiative again to roll a new order.')
+        body = '\n'.join(lines)
+        await asyncio.to_thread(tracker.save_turn_order, interaction.guild_id, body)
+        await send_tracker(interaction, 'Initiative — Turn order', body)
+
+    @bot.tree.command(name='turnorder', description='Show this server’s latest initiative order without rerolling')
+    @app_commands.guild_only()
+    async def turnorder(interaction: discord.Interaction):
+        await interaction.response.defer()
+        body = await asyncio.to_thread(tracker.turn_order, interaction.guild_id)
+        if body is None:
+            await interaction.followup.send('No turn order saved yet. Use /initiative first.', ephemeral=True)
+            return
+        await send_tracker(interaction, 'Initiative — Turn order', body)

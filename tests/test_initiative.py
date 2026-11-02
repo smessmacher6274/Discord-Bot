@@ -1,10 +1,13 @@
 import unittest
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import main
 from dnd.initiative import initiative_order, register_initiative_command
 from dnd.skills import parse_skills
+from dnd.tracker import Tracker
 
 
 def campaign(modifier='7'):
@@ -51,6 +54,7 @@ class InitiativeCommandTests(unittest.IsolatedAsyncioTestCase):
         tracker.signed_in.return_value = [(10, 'A')]
         skills = SimpleNamespace(load=AsyncMock(return_value=campaign()))
         bot.tree.remove_command('initiative')
+        bot.tree.remove_command('turnorder')
         register_initiative_command(bot, tracker, skills)
         interaction = SimpleNamespace(guild_id=123, response=SimpleNamespace(defer=AsyncMock()),
                                       followup=SimpleNamespace(send=AsyncMock()))
@@ -61,9 +65,10 @@ class InitiativeCommandTests(unittest.IsolatedAsyncioTestCase):
         payload = interaction.followup.send.call_args.kwargs
         self.assertNotIn('ephemeral', payload)
         text = payload['embed'].description
-        self.assertIn('1. **Zed** — **18**', text)
+        self.assertIn('1. **Zed** \u2014 **18**', text)
         self.assertIn('2d10: 1 + 10; Willpower: +7', text)
         self.assertNotIn('Amy', text)
+        tracker.save_turn_order.assert_called_once_with(123, text)
 
     async def test_empty_roster_does_not_load_sheet(self):
         bot = main.Bot()
@@ -71,9 +76,43 @@ class InitiativeCommandTests(unittest.IsolatedAsyncioTestCase):
         tracker.signed_in.return_value = []
         skills = SimpleNamespace(load=AsyncMock())
         bot.tree.remove_command('initiative')
+        bot.tree.remove_command('turnorder')
         register_initiative_command(bot, tracker, skills)
         interaction = SimpleNamespace(guild_id=1, response=SimpleNamespace(defer=AsyncMock()),
                                       followup=SimpleNamespace(send=AsyncMock()))
         await bot.tree.get_command('initiative').callback(interaction)
         skills.load.assert_not_awaited()
         self.assertTrue(interaction.followup.send.call_args.kwargs['ephemeral'])
+
+    async def test_saved_order_survives_restart_party_changes_and_failed_roll(self):
+        with tempfile.TemporaryDirectory() as directory:
+            bot = main.Bot()
+            bot.tracker.path = Path(directory) / 'tracker.sqlite3'
+            bot.tracker.signin(1, 10, 'A')
+            bot.skills.load = AsyncMock(return_value=campaign())
+            interaction = SimpleNamespace(guild_id=1, response=SimpleNamespace(defer=AsyncMock()),
+                                          followup=SimpleNamespace(send=AsyncMock()))
+            with patch('dnd.initiative.secrets.randbelow', side_effect=[0, 9]):
+                await bot.tree.get_command('initiative').callback(interaction)
+            original = interaction.followup.send.call_args.kwargs['embed'].description
+            bot.tracker.signout(1, 10)
+            self.assertEqual(Tracker(bot.tracker.path).turn_order(1), original)
+            bot.skills.load.reset_mock()
+            with patch('dnd.initiative.secrets.randbelow') as dice:
+                await bot.tree.get_command('turnorder').callback(interaction)
+                dice.assert_not_called()
+            bot.skills.load.assert_not_awaited()
+            self.assertEqual(interaction.followup.send.call_args.kwargs['embed'].description, original)
+            interaction.guild_id = 2
+            await bot.tree.get_command('turnorder').callback(interaction)
+            self.assertIn('/initiative', interaction.followup.send.call_args.args[0])
+            self.assertTrue(interaction.followup.send.call_args.kwargs['ephemeral'])
+            interaction.guild_id = 1
+            bot.tracker.signin(1, 10, 'A')
+            bot.skills.load.return_value = campaign('conditional')
+            await bot.tree.get_command('initiative').callback(interaction)
+            self.assertEqual(bot.tracker.turn_order(1), original)
+            bot.skills.load.return_value = campaign()
+            with patch('dnd.initiative.secrets.randbelow', return_value=9):
+                await bot.tree.get_command('initiative').callback(interaction)
+            self.assertNotEqual(bot.tracker.turn_order(1), original)

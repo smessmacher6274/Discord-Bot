@@ -28,6 +28,8 @@ class Tracker:
                 CREATE TABLE IF NOT EXISTS signins (
                     guild INTEGER, user INTEGER, character TEXT,
                     PRIMARY KEY (guild, user), UNIQUE (guild, character));
+                CREATE TABLE IF NOT EXISTS initiative_orders (
+                    guild INTEGER PRIMARY KEY, body TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS resources (
                     guild INTEGER, character TEXT, stat TEXT, baseline INTEGER, current INTEGER,
                     PRIMARY KEY (guild, character, stat));
@@ -68,6 +70,16 @@ class Tracker:
         with self.transaction() as db:
             return [(row['user'], row['character']) for row in db.execute(
                 'SELECT user,character FROM signins WHERE guild=? ORDER BY character', (guild,))]
+
+    def save_turn_order(self, guild, body):
+        with self.transaction() as db:
+            db.execute('INSERT INTO initiative_orders VALUES (?,?) ON CONFLICT(guild) '
+                       'DO UPDATE SET body=excluded.body', (guild, body))
+
+    def turn_order(self, guild):
+        with self.transaction() as db:
+            row = db.execute('SELECT body FROM initiative_orders WHERE guild=?', (guild,)).fetchone()
+            return row['body'] if row else None
 
     def resources(self, guild, character, baselines, action='view', stat=None, amount=None):
         if action not in ('view', 'add', 'subtract', 'reset', 'baseline'):
