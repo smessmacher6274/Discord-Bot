@@ -7,13 +7,13 @@ PAGES = {
     'start': ('Getting started', '''Use slash commands in a server. Select a character from autocomplete, then fill in the remaining options. Type part of a name to search; Discord shows at most 25 autocomplete choices at once.
 
 **Choose a topic below**
-â€¢ **Character stats** â€” current Health, Armor, Stamina; add, subtract, reset, and baselines.
-â€¢ **Enemies** â€” create opponents and record damage by character.
-â€¢ **Skills & rolls** â€” skill modifiers and 2d10 checks.
-â€¢ **Initiative** â€” roll for all signed-in characters and create a turn order.
-â€¢ **Abilities & relics** â€” descriptions, loadouts, and weapon damage references.
-â€¢ **Music** â€” playback, playlists, queues, volume, and shuffle.
-â€¢ **Spotify** â€” playlist import, export, and account connection.
+• **Character stats** — current Health, Armor, Stamina; add, subtract, reset, and baselines.
+• **Enemies** — create opponents and record damage by character.
+• **Skills & rolls** — skill modifiers and 2d10 checks.
+• **Initiative** — roll for all signed-in characters and create a turn order.
+• **Abilities & relics** — descriptions, loadouts, and weapon damage references.
+• **Music** — playback, playlists, queues, volume, and shuffle.
+• **Spotify** — playlist import, export, and account connection.
 
 **Quick combat example**
 1. `/stats view character:Ryujin`
@@ -63,14 +63,14 @@ Restores that stat's current value to its saved baseline. **Omit stat** to reset
 Sets the saved baseline **and resets current to the same value**. Use for missing baselines or permanent stat changes. Value may be zero. Do not use this for ordinary damage or healing.
 
 **Example**
-Baseline 10 â†’ subtract 2 â†’ current 8 â†’ add 1 â†’ current 9 â†’ reset â†’ current 10.
+Baseline 10 → subtract 2 → current 8 → add 1 → current 9 → reset → current 10.
 
 **Important behavior**
-â€¢ Add/subtract amounts must be positive whole numbers.
-â€¢ Current may exceed baseline or go below zero; the bot does not clamp it.
-â€¢ Sheet values/formulas and skill roll modifiers are never edited by these commands.
-â€¢ Baselines are copied on first use. Later Sheet edits do **not** automatically replace saved baselines; use `/stats baseline` to update them.
-â€¢ Values survive restarts on the same host. They are stored locally, separately per server. Moving the bot to the Pi requires copying its tracker database as well as the code.'''),
+• Add/subtract amounts must be positive whole numbers.
+• Current may exceed baseline or go below zero; the bot does not clamp it.
+• Sheet values/formulas and skill roll modifiers are never edited by these commands.
+• Baselines are copied on first use. Later Sheet edits do **not** automatically replace saved baselines; use `/stats baseline` to update them.
+• Values survive restarts on the same host. They are stored locally, separately per server. Moving the bot to the Pi requires copying its tracker database as well as the code.'''),
     'enemies': ('Enemies & damage dealt', '''Enemy trackers represent opponents in your game, not actual Discord bot accounts.
 
 `/enemy create name:Guard health:30`
@@ -101,7 +101,7 @@ Blank modifiers display **Not set**. Zero is a valid modifier. Long lists includ
 Choose the character first, then a skill. Rolls two independent ten-sided dice and adds that character's skill modifier. Results appear in the channel with both dice, the modifier, and total.
 
 **Example**
-Dice 4 and 8, Willpower 6 â†’ **4 + 8 + 6 = 18**.
+Dice 4 and 8, Willpower 6 → **4 + 8 + 6 = 18**.
 
 Only whole-number modifiers are rollable: 6, +6, 0, and -2 all work. Blank or conditional text modifiers cannot be rolled. Skill autocomplete offers only rollable entries for the selected character and shows each modifier (for example Melee +7). With more than 25 entries, type part of the skill name to find it.
 
@@ -135,10 +135,10 @@ TXT: one `Artist - Title` per line.
 JSON: `[{"title":"Song title","artist":"Artist name"}]`
 Missing catalog matches can be searched on YouTube as each song comes up. Ambiguous/unavailable entries may be skipped and reported.
 
-`/pause` â€” pauses the playing song.
-`/resume` â€” continues a paused song.
-`/skip` â€” stops the current song and advances to the next queued song.
-`/remove` â€” stops music, clears the queue, and leaves voice. The bot also leaves automatically after 10 minutes without music, including while paused.
+`/pause` — pauses the playing song.
+`/resume` — continues a paused song.
+`/skip` — stops the current song and advances to the next queued song.
+`/remove` — stops music, clears the queue, and leaves voice. The bot also leaves automatically after 10 minutes without music, including while paused.
 
 `/queue`
 Opens a private snapshot of the current and upcoming songs, 10 per page. Previous/Next navigate the snapshot. Reopen `/queue` for a fresh view. The menu lasts two minutes and only its requester can operate it.
@@ -181,8 +181,8 @@ If a request fails, check the playlist link, access permissions, sign-in, and vo
 
 def help_embed(topic):
     title, text = PAGES[topic]
-    embed = discord.Embed(title=f'Help â€” {title}', description=text)
-    embed.set_footer(text='Use the topic menu below â€¢ Only you can see this guide')
+    embed = discord.Embed(title=f'Help — {title}', description=text)
+    embed.set_footer(text='Use the topic menu below • Only you can see this guide')
     return embed
 
 

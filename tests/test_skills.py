@@ -73,6 +73,8 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dice.call_count, 2)
         self.assertTrue(all(call.args == (10,) for call in dice.call_args_list))
         description = interaction.followup.send.call_args.kwargs['embed'].description
+        self.assertEqual(interaction.followup.send.call_args.kwargs['embed'].title,
+                         'Krusty \u2014 Navigation')
         self.assertIn('1 + 10', description)
         self.assertIn('**-2**', description)
         self.assertIn('Total: **9**', description)
