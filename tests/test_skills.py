@@ -55,9 +55,11 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
             response=SimpleNamespace(defer=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()))
         self.assertEqual([choice.value for choice in await callback(interaction, '')], ['Navigation', 'Willpower'])
         self.assertEqual([choice.value for choice in await callback(interaction, 'will')], ['Willpower'])
+        self.assertEqual([choice.name for choice in await callback(interaction, '')],
+                         ['Navigation +4', 'Willpower +5'])
         with patch('dnd.skills.secrets.randbelow') as dice:
             with self.assertRaisesRegex(AbilityError, 'whole-number'):
-                await bot.tree.get_command('roll').callback(interaction, 'Ryujin', 'Speed')
+                await bot.tree.get_command('roll').callback(interaction, character='Ryujin', skill='Speed')
             dice.assert_not_called()
 
     async def test_roll_uses_two_d10_and_selected_characters_modifier(self):
@@ -67,7 +69,7 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
         interaction = SimpleNamespace(response=SimpleNamespace(defer=AsyncMock()),
                                       followup=SimpleNamespace(send=AsyncMock()))
         with patch('dnd.skills.secrets.randbelow', side_effect=[0, 9]) as dice:
-            await bot.tree.get_command('roll').callback(interaction, 'Krusty', 'navigation')
+            await bot.tree.get_command('roll').callback(interaction, character='Krusty', skill='navigation')
         self.assertEqual(dice.call_count, 2)
         self.assertTrue(all(call.args == (10,) for call in dice.call_args_list))
         description = interaction.followup.send.call_args.kwargs['embed'].description
@@ -76,11 +78,11 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Total: **9**', description)
         with patch('dnd.skills.secrets.randbelow') as dice:
             with self.assertRaises(AbilityError):
-                await bot.tree.get_command('roll').callback(interaction, 'Krusty', 'Willpower')
+                await bot.tree.get_command('roll').callback(interaction, character='Krusty', skill='Willpower')
             bot.skills.fetch_tabs.return_value = (CHARACTERS, SKILLS.replace('+5', 'conditional'))
             await bot.skills.load(force=True)
             with self.assertRaisesRegex(AbilityError, 'whole-number'):
-                await bot.tree.get_command('roll').callback(interaction, 'Ryujin', 'Willpower')
+                await bot.tree.get_command('roll').callback(interaction, character='Ryujin', skill='Willpower')
             dice.assert_not_called()
 
     async def test_roll_skill_autocomplete_depends_on_character(self):
@@ -90,6 +92,7 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
         callback = bot.tree.get_command('roll')._params['skill'].autocomplete
         interaction = SimpleNamespace(namespace=SimpleNamespace(character='Krusty'))
         self.assertEqual([choice.value for choice in await callback(interaction, '')], ['Navigation'])
+        self.assertEqual([choice.name for choice in await callback(interaction, '')], ['Navigation -2'])
         interaction.namespace.character = ''
         self.assertEqual(await callback(interaction, ''), [])
 

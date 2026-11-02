@@ -22,6 +22,8 @@ from dnd.relics import RelicService, register_relic_commands
 from dnd.loadout import LoadoutService, register_loadout_commands
 from dnd.tracker import Tracker, register_tracker_commands
 from dnd.help import register_help_command
+from dnd.signin import register_signin_commands
+from dnd.initiative import register_initiative_command
 # AI image generation disabled for deployment; implementation kept for later.
 # from services.image_generation import ImageGenerator
 
@@ -42,6 +44,8 @@ class Bot(commands.Bot):
         register_skill_commands(self, self.skills, self.abilities)
         self.tracker = Tracker(config.ROOT / 'data' / 'tracker.sqlite3')
         register_tracker_commands(self, self.tracker, self.skills)
+        register_signin_commands(self, self.tracker, self.abilities)
+        register_initiative_command(self, self.tracker, self.skills)
         self.damage = DamageService(config.DND_SHEET_ID, config.DND_DAMAGE_RANGES_GID)
         register_damage_commands(self, self.damage)
         self.relics = RelicService(config.DND_SHEET_ID, config.DND_RELICS_GID)
@@ -244,6 +248,20 @@ async def skip(interaction: discord.Interaction):
     player, _ = player_for(interaction)
     track = await player.skip()
     await interaction.response.send_message(f'Skipped: {discord.utils.escape_markdown(track.label[:180])}')
+
+@bot.tree.command(description='Stop music, clear the queue, and leave the voice channel')
+@app_commands.guild_only()
+async def remove(interaction: discord.Interaction):
+    player, _ = player_for(interaction)
+    await interaction.response.defer()
+    # Recover a voice connection even if the player no longer holds its client.
+    async with player.lifecycle_lock:
+        if not player.voice:
+            player.voice = interaction.guild.voice_client
+        if player.voice and player.voice.channel.id != interaction.user.voice.channel.id:
+            raise ValueError('Join the bot’s voice channel first.')
+        await player._close()
+    await interaction.followup.send('Stopped music, cleared the queue, and left the voice channel.')
 
 class QueuePages(discord.ui.View):
     def __init__(self, tracks, current, user):

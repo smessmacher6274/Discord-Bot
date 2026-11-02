@@ -55,7 +55,7 @@ text attachment. Relics load independently of character and ability assignments.
 `/roll character:Ryujin skill:Willpower` rolls two independent d10s, adds the
 selected character's whole-number skill modifier, and posts both dice, the modifier,
 and total in the channel. Choose the character first; skill autocomplete lists only
-that character's skills. No additional ability bonuses are inferred. Conditional
+that character's skills with their modifiers (for example `Melee +7`). No additional ability bonuses are inferred. Conditional
 or nonnumeric modifiers produce an error instead of an assumed result.
 
 `/skills character:Ryujin` shows all recorded skill modifiers in a private response,
@@ -115,3 +115,19 @@ exactly as recorded. The tab requires `Weapon Type` plus those three headers, wi
 one unique weapon type per row. Blank values display as Not set. Data refreshes
 after 60 seconds. Override the tab with `DND_DAMAGE_RANGES_GID` if needed.
 Restart the bot to register the new command.
+
+## Character sign-in
+
+`/initiative` rolls 2d10 + Willpower for every signed-in character in this server
+and posts a numbered turn order from highest total to lowest, including dice and
+modifiers. Ties sort alphabetically. All characters must have a whole-number
+Willpower modifier in Skills before rolling. Run it again for a fresh order;
+the posted list does not automatically advance turns. See `/help topic:initiative`.
+
+Use `/signin character:Ryujin` to save your default for this server. Omit `character`
+from roll, skills, abilities, loadout, stats, and enemy damage commands to use it.
+`/roll skill:Willpower` also uses your default for skill suggestions. An explicit
+character overrides the default for that command. Discord does not visibly prefill fields.
+`/signedin` lists the server roster; `/signout` clears your sign-in. One user per
+character and one character per user per server. Sign in again to switch. Sign-ins
+persist in `data/tracker.sqlite3` until sign-out or switching; back up this database.

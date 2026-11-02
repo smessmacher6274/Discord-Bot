@@ -1,4 +1,5 @@
 """Read-only homebrew skill modifiers; no standard D&D calculations."""
+from dnd.signin import resolve_character
 import asyncio
 import csv
 import io
@@ -67,13 +68,13 @@ class SkillService(AbilityService):
 
 
 def skill_response(character, entries, source_url):
-    text = '\n'.join(f'{skill.name}: {skill.modifier or "Not set"}' + (f' — {skill.notes}' if skill.notes else '')
+    text = '\n'.join(f'{skill.name}: {skill.modifier or "Not set"}' + (f' â€” {skill.notes}' if skill.notes else '')
                      for skill in entries)
     attachments = []
     if len(text) > 4096:
         attachments = [discord.File(io.BytesIO(text.encode('utf-8')), filename='skill-modifiers.txt')]
         text = text[:3900] + '\n\nAll skill modifiers are included in the attached file.'
-    embed = discord.Embed(title=f'{character.name} — Skill modifiers',
+    embed = discord.Embed(title=f'{character.name} â€” Skill modifiers',
                           description=text or 'No skills are recorded for this character yet.', url=source_url)
     embed.set_footer(text=f'{len(entries)} skills | Values from the campaign Sheet')
     return embed, attachments
@@ -83,10 +84,10 @@ def register_skill_commands(bot, service, character_service):
     @bot.tree.command(name='skills', description='Show all skill roll modifiers for a character')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose your character')
-    async def skills(interaction: discord.Interaction, character: str):
+    async def skills(interaction: discord.Interaction, character: str = None):
         await interaction.response.defer(ephemeral=True)
         catalog, records = await service.load()
-        selected = catalog.character(character)
+        selected = catalog.character(await resolve_character(bot, interaction, character))
         embed, files = skill_response(selected, records[selected.id], service.source_url)
         try:
             await interaction.followup.send(embed=embed, files=files, ephemeral=True,
@@ -107,14 +108,14 @@ def register_skill_commands(bot, service, character_service):
         return [app_commands.Choice(name=name, value=name) for name in names
                 if current.casefold() in name.casefold()][:25]
 
-    @bot.tree.command(name='roll', description='Roll 2d10 plus a character’s skill modifier')
+    @bot.tree.command(name='roll', description='Roll 2d10 plus a characterâ€™s skill modifier')
     @app_commands.guild_only()
-    @app_commands.describe(character='Choose your character', skill='Choose one of this character’s skills')
-    async def roll(interaction: discord.Interaction, character: str, skill: str):
+    @app_commands.describe(character='Choose your character', skill='Choose one of this characterâ€™s skills')
+    async def roll(interaction: discord.Interaction, skill: str, character: str = None):
         # Validate before publishing a roll; invalid inputs get a private error.
         await interaction.response.defer()
         catalog, records = await service.load()
-        selected = catalog.character(character)
+        selected = catalog.character(await resolve_character(bot, interaction, character))
         entry = next((entry for entry in records[selected.id]
                       if entry.name.casefold() == skill.strip().casefold()), None)
         if entry is None:
@@ -123,7 +124,7 @@ def register_skill_commands(bot, service, character_service):
             raise AbilityError(f'{entry.name} needs a whole-number modifier to roll (for example +4, 0, or -2).')
         modifier = int(entry.modifier)
         first, second = secrets.randbelow(10) + 1, secrets.randbelow(10) + 1
-        embed = discord.Embed(title=f'{selected.name} — {entry.name}',
+        embed = discord.Embed(title=f'{selected.name} â€” {entry.name}',
             description=f'2d10: **{first} + {second}**\nModifier: **{modifier:+d}**\n'
                         f'Total: **{first + second + modifier}**')
         await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
@@ -133,14 +134,15 @@ def register_skill_commands(bot, service, character_service):
     @roll.autocomplete('skill')
     async def skill_autocomplete(interaction, current):
         character = getattr(interaction.namespace, 'character', '')
-        if not character:
-            return []
         try:
+            character = await resolve_character(bot, interaction, character)
             catalog, records = await asyncio.wait_for(service.load(), timeout=2)
             selected = catalog.character(character)
         except (ValueError, asyncio.TimeoutError):
             return []
-        return [app_commands.Choice(name=entry.name, value=entry.name)
+        return [app_commands.Choice(
+                    name=f'{entry.name[:100 - len(f"{int(entry.modifier):+d}") - 1]} {int(entry.modifier):+d}',
+                    value=entry.name)
                 for entry in records[selected.id]
                 if current.casefold() in entry.name.casefold()
                 and re.fullmatch(r'[+-]?[0-9]{1,9}', entry.modifier)][:25]

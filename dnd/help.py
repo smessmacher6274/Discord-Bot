@@ -10,6 +10,7 @@ PAGES = {
 • **Character stats** — current Health, Armor, Stamina; add, subtract, reset, and baselines.
 • **Enemies** — create opponents and record damage by character.
 • **Skills & rolls** — skill modifiers and 2d10 checks.
+• **Initiative** — roll for all signed-in characters and create a turn order.
 • **Abilities & relics** — descriptions, loadouts, and weapon damage references.
 • **Music** — playback, playlists, queues, volume, and shuffle.
 • **Spotify** — playlist import, export, and account connection.
@@ -29,6 +30,19 @@ Help and reference lookups are private. Rolls, character trackers, and enemy tra
 No voice connection is needed for campaign commands. Music playback and controls require joining the bot's voice channel (or a voice channel before it connects).
 
 `/help` opens this guide. `/help topic:stats` opens a topic directly. If the menu expires after 10 minutes, run `/help` again. AI image generation is currently disabled.'''),
+    'signin': ('Character sign-in', '''`/signin character:Ryujin` saves your character in this server. Omit character from `/roll`, `/skills`, `/abilities`, `/loadout`, `/stats` commands, and `/enemy damage` to use it automatically. Roll skill suggestions also use your saved character. Discord does not visibly prefill the character field.
+
+`/signout` clears your character and removes you from the roster.
+`/signedin` lists signed-in characters and Discord users in this server.
+
+One character per user and one user per character in each server. Run `/signin` again to switch; an occupied character cannot be claimed. Sign-ins survive restarts and stay active until you sign out or switch. Explicit character choices override your default for that command without changing sign-in. This is a default selection, not an access restriction on other characters.'''),
+    'initiative': ('Initiative & turn order', '''Have each player use `/signin character:Name`, then run `/initiative` once for the group.
+
+The bot rolls two independent d10s for each character signed in to this server, adds that character's Willpower modifier from Skills, and posts a numbered turn order from highest total to lowest. Each entry shows the dice, modifier, and total. Ties are ordered alphabetically by character name.
+
+All signed-in characters participate, even if their Discord users are offline. Other servers are excluded. Missing characters or missing, blank, or conditional Willpower modifiers must be fixed before anyone is rolled; no partial order is posted. Any server member can run the command.
+
+The posted list is the turn-order reference. Run `/initiative` again to roll a fresh order. This does not advance turns, apply damage, or change character stats.'''),
     'stats': ('Character stats', '''Track **Health, Armor, and Stamina** independently for each character.
 
 **Baseline** is the saved starting value. **Current** is the amount remaining after changes. You do not switch a Sheet cell or edit its formula when using the bot.
@@ -89,7 +103,7 @@ Choose the character first, then a skill. Rolls two independent ten-sided dice a
 **Example**
 Dice 4 and 8, Willpower 6 → **4 + 8 + 6 = 18**.
 
-Only whole-number modifiers are rollable: 6, +6, 0, and -2 all work. Blank or conditional text modifiers cannot be rolled. Skill autocomplete offers only rollable entries for the selected character. With more than 25 entries, type part of the skill name to find it.
+Only whole-number modifiers are rollable: 6, +6, 0, and -2 all work. Blank or conditional text modifiers cannot be rolled. Skill autocomplete offers only rollable entries for the selected character and shows each modifier (for example Melee +7). With more than 25 entries, type part of the skill name to find it.
 
 No critical-hit, advantage, extra ability bonus, or target difficulty calculation is automatically added. Rolls do not modify current Health, Armor, or Stamina and do not apply damage to enemies.
 
@@ -124,6 +138,7 @@ Missing catalog matches can be searched on YouTube as each song comes up. Ambigu
 `/pause` — pauses the playing song.
 `/resume` — continues a paused song.
 `/skip` — stops the current song and advances to the next queued song.
+`/remove` — stops music, clears the queue, and leaves voice. The bot also leaves automatically after 10 minutes without music, including while paused.
 
 `/queue`
 Opens a private snapshot of the current and upcoming songs, 10 per page. Previous/Next navigate the snapshot. Reopen `/queue` for a fresh view. The menu lasts two minutes and only its requester can operate it.

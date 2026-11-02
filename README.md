@@ -128,7 +128,7 @@ On first use after restart, complete Spotify sign-in in the browser on the bot P
 they use one connected personal account. See `SPOTIFY_SETUP.md` for Client ID setup.
 
 `/play query`, `/pause`, `/resume`, `/queue`, `/removeall`, `/removeindex index`,
-`/volume level` (0–100; default 50), `/skip`, `/shuffle`. The `/queue` view also has a
+`/volume level` (0–100; default 50), `/skip`, `/shuffle`, `/remove` (stop, clear the queue, and leave voice). The bot automatically leaves after 10 minutes without music, including while paused. The `/queue` view also has a
 Shuffle button that randomizes the live upcoming queue and refreshes its displayed
 order. Shuffle requires at least two upcoming songs and being in the bot's voice
 channel; it preserves the current song, duplicates, and volume. Skip stops the current playing or paused

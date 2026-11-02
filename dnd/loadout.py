@@ -1,4 +1,5 @@
 """Character relic holdings joined by the campaign's character IDs."""
+from dnd.signin import resolve_character
 import asyncio
 import io
 import time
@@ -47,12 +48,12 @@ class LoadoutService(AbilityService):
 
 
 def loadout_response(character, relics, source_url):
-    text = '\n'.join(f'• {name}' for name in relics)
+    text = '\n'.join(f'â€¢ {name}' for name in relics)
     files = []
     if len(text) > 4096:
         files.append(discord.File(io.BytesIO(text.encode('utf-8')), filename='character-loadout.txt'))
         text = text[:3900] + '\n\nFull loadout attached as a text file.'
-    embed = discord.Embed(title=f'{character.name} — Relic loadout', url=source_url,
+    embed = discord.Embed(title=f'{character.name} â€” Relic loadout', url=source_url,
                           description=text or 'This character holds no relics.')
     embed.set_footer(text=f'Character ID: {character.id} | {len(relics)} relics')
     return embed, files
@@ -62,10 +63,10 @@ def register_loadout_commands(bot, service):
     @bot.tree.command(name='loadout', description='Show all relics held by a character')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose a character or enter their Character ID')
-    async def loadout(interaction: discord.Interaction, character: str):
+    async def loadout(interaction: discord.Interaction, character: str = None):
         await interaction.response.defer(ephemeral=True)
         catalog, holdings = await service.load()
-        selected = catalog.character(character)
+        selected = catalog.character(await resolve_character(bot, interaction, character))
         embed, files = loadout_response(selected, holdings[selected.id], service.source_url)
         try:
             await interaction.followup.send(embed=embed, files=files, ephemeral=True,

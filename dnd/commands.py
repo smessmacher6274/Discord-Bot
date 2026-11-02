@@ -1,3 +1,4 @@
+from dnd.signin import resolve_character
 import asyncio
 import io
 import logging
@@ -114,10 +115,10 @@ def register_ability_commands(bot, service):
     @bot.tree.command(name='abilities', description='Browse a character’s homebrew abilities')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose your character')
-    async def abilities(interaction: discord.Interaction, character: str):
+    async def abilities(interaction: discord.Interaction, character: str = None):
         await interaction.response.defer(ephemeral=True)
         catalog = await service.load()
-        selected = catalog.character(character)
+        selected = catalog.character(await resolve_character(bot, interaction, character))
         view = AbilityView(service, catalog, selected.id, interaction.user.id)
         embed, _ = view.embed()
         await interaction.followup.send(embed=embed, view=view, ephemeral=True,

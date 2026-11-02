@@ -87,11 +87,11 @@ class TrackerCommandTests(unittest.IsolatedAsyncioTestCase):
     async def test_stat_commands_and_character_autocomplete(self):
         command = self.bot.tree.get_command('stats')
         interaction = self.interaction()
-        await command.get_command('subtract').callback(interaction, 'Ryujin', 'Health', 3)
+        await command.get_command('subtract').callback(interaction, stat='Health', amount=3, character='Ryujin')
         result = interaction.followup.send.call_args.kwargs['embed'].description
         self.assertIn('Current: **7** | Baseline: 10', result)
         self.assertIn('Stamina** — Not set', result)
-        await command.get_command('baseline').callback(interaction, 'Ryujin', 'Stamina', 9)
+        await command.get_command('baseline').callback(interaction, stat='Stamina', value=9, character='Ryujin')
         await command.get_command('reset').callback(interaction, 'Ryujin')
         self.assertIn('Current: **10**', interaction.followup.send.call_args.kwargs['embed'].description)
         choices = await command.get_command('view')._params['character'].autocomplete(interaction, 'ryu')
@@ -101,7 +101,7 @@ class TrackerCommandTests(unittest.IsolatedAsyncioTestCase):
         command = self.bot.tree.get_command('enemy')
         interaction = self.interaction()
         await command.get_command('create').callback(interaction, 'Guard', 30)
-        await command.get_command('damage').callback(interaction, 'Guard', 'Ryujin', 8)
+        await command.get_command('damage').callback(interaction, enemy='Guard', amount=8, character='Ryujin')
         text = interaction.followup.send.call_args.kwargs['embed'].description
         self.assertIn('**22 / 30**', text)
         self.assertIn('Ryujin: **8**', text)

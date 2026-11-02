@@ -8,6 +8,7 @@ from pathlib import Path
 
 import discord
 from discord import app_commands
+from dnd.signin import resolve_character
 
 STATS = ('Health', 'Armor', 'Stamina')
 LIMIT = 1_000_000_000
@@ -24,6 +25,9 @@ class Tracker:
         db.row_factory = sqlite3.Row
         try:
             db.executescript('''
+                CREATE TABLE IF NOT EXISTS signins (
+                    guild INTEGER, user INTEGER, character TEXT,
+                    PRIMARY KEY (guild, user), UNIQUE (guild, character));
                 CREATE TABLE IF NOT EXISTS resources (
                     guild INTEGER, character TEXT, stat TEXT, baseline INTEGER, current INTEGER,
                     PRIMARY KEY (guild, character, stat));
@@ -42,6 +46,28 @@ class Tracker:
             raise
         finally:
             db.close()
+
+    def signin(self, guild, user, character):
+        with self.transaction() as db:
+            try:
+                db.execute('INSERT INTO signins VALUES (?,?,?) ON CONFLICT(guild,user) '
+                           'DO UPDATE SET character=excluded.character', (guild, user, character))
+            except sqlite3.IntegrityError:
+                raise ValueError('That character is already signed in by another user.') from None
+
+    def signout(self, guild, user):
+        with self.transaction() as db:
+            db.execute('DELETE FROM signins WHERE guild=? AND user=?', (guild, user))
+
+    def signed_character(self, guild, user):
+        with self.transaction() as db:
+            row = db.execute('SELECT character FROM signins WHERE guild=? AND user=?', (guild, user)).fetchone()
+            return row['character'] if row else None
+
+    def signed_in(self, guild):
+        with self.transaction() as db:
+            return [(row['user'], row['character']) for row in db.execute(
+                'SELECT user,character FROM signins WHERE guild=? ORDER BY character', (guild,))]
 
     def resources(self, guild, character, baselines, action='view', stat=None, amount=None):
         if action not in ('view', 'add', 'subtract', 'reset', 'baseline'):
@@ -154,7 +180,7 @@ def register_tracker_commands(bot, tracker, skills):
     async def change(interaction, character, action='view', stat=None, amount=None):
         await interaction.response.defer()
         catalog, records = await skills.load()
-        selected = catalog.character(character)
+        selected = catalog.character(await resolve_character(bot, interaction, character))
         values = await asyncio.to_thread(tracker.resources, interaction.guild_id, selected.id,
                                         sheet_baselines(records[selected.id]), action, stat, amount)
         lines = []
@@ -172,30 +198,30 @@ def register_tracker_commands(bot, tracker, skills):
         await send_tracker(interaction, f'{selected.name} — Stats', '\n'.join(lines))
 
     @stats.command(name='view', description='Show current and baseline character stats')
-    async def view(interaction: discord.Interaction, character: str):
+    async def view(interaction: discord.Interaction, character: str = None):
         await change(interaction, character)
 
     @stats.command(name='add', description='Add to a character’s current stat')
     @app_commands.choices(stat=stat_choices)
-    async def add(interaction: discord.Interaction, character: str, stat: str,
-                  amount: app_commands.Range[int, 1, LIMIT]):
+    async def add(interaction: discord.Interaction, stat: str,
+                  amount: app_commands.Range[int, 1, LIMIT], character: str = None):
         await change(interaction, character, 'add', stat, amount)
 
     @stats.command(name='subtract', description='Subtract from a character’s current stat')
     @app_commands.choices(stat=stat_choices)
-    async def subtract(interaction: discord.Interaction, character: str, stat: str,
-                       amount: app_commands.Range[int, 1, LIMIT]):
+    async def subtract(interaction: discord.Interaction, stat: str,
+                  amount: app_commands.Range[int, 1, LIMIT], character: str = None):
         await change(interaction, character, 'subtract', stat, amount)
 
     @stats.command(name='reset', description='Reset one stat or all stats to their saved baselines')
     @app_commands.choices(stat=stat_choices)
-    async def reset(interaction: discord.Interaction, character: str, stat: str = None):
+    async def reset(interaction: discord.Interaction, character: str = None, stat: str = None):
         await change(interaction, character, 'reset', stat)
 
     @stats.command(name='baseline', description='Set a stat’s baseline and reset its current value to match')
     @app_commands.choices(stat=stat_choices)
-    async def baseline(interaction: discord.Interaction, character: str, stat: str,
-                       value: app_commands.Range[int, 0, LIMIT]):
+    async def baseline(interaction: discord.Interaction, stat: str,
+                       value: app_commands.Range[int, 0, LIMIT], character: str = None):
         await change(interaction, character, 'baseline', stat, value)
 
     for command in (view, add, subtract, reset, baseline):
@@ -210,7 +236,7 @@ def register_tracker_commands(bot, tracker, skills):
         catalog = None
         if amount is not None:
             catalog, _ = await skills.load()
-            character = catalog.character(character).id
+            character = catalog.character(await resolve_character(bot, interaction, character)).id
         name, health, total, contributions = await asyncio.to_thread(
             tracker.enemy, interaction.guild_id, name, amount, character, interaction.user.id, reset)
         lines = [f'Damage dealt: **{total}**']
@@ -239,8 +265,8 @@ def register_tracker_commands(bot, tracker, skills):
         await show_enemy(interaction, name)
 
     @enemies.command(name='damage', description='Assign damage dealt by a character to an enemy')
-    async def damage(interaction: discord.Interaction, enemy: str, character: str,
-                     amount: app_commands.Range[int, 1, LIMIT]):
+    async def damage(interaction: discord.Interaction, enemy: str,
+                     amount: app_commands.Range[int, 1, LIMIT], character: str = None):
         await interaction.response.defer()
         await show_enemy(interaction, enemy, amount, character)
 
