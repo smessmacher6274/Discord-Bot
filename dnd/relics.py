@@ -70,8 +70,8 @@ def register_relic_commands(bot, service):
     @bot.tree.command(name='relic', description='Look up a relic’s description')
     @app_commands.guild_only()
     @app_commands.describe(relic='Choose a relic')
-    async def relic(interaction: discord.Interaction, relic: str):
-        await interaction.response.defer(ephemeral=True)
+    async def relic(interaction: discord.Interaction, relic: str, show: bool = False):
+        await interaction.response.defer(ephemeral=not show)
         relics = await service.load()
         selected = relics.get(relic.strip().casefold())
         if selected is None:
@@ -81,7 +81,7 @@ def register_relic_commands(bot, service):
             raise AbilityError('Relic not found. Choose a relic from autocomplete.')
         embed, files = relic_response(selected, service.source_url)
         try:
-            await interaction.followup.send(embed=embed, files=files, ephemeral=True,
+            await interaction.followup.send(embed=embed, files=files, ephemeral=not show,
                                             allowed_mentions=discord.AllowedMentions.none())
         finally:
             for file in files:

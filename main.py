@@ -24,6 +24,7 @@ from dnd.tracker import Tracker, register_tracker_commands
 from dnd.help import register_help_command
 from dnd.signin import register_signin_commands
 from dnd.initiative import register_initiative_command
+from dnd.dice import register_dice_commands
 # AI image generation disabled for deployment; implementation kept for later.
 # from services.image_generation import ImageGenerator
 
@@ -46,6 +47,7 @@ class Bot(commands.Bot):
         register_tracker_commands(self, self.tracker, self.skills)
         register_signin_commands(self, self.tracker, self.abilities)
         register_initiative_command(self, self.tracker, self.skills)
+        register_dice_commands(self, self.tracker, self.abilities)
         self.damage = DamageService(config.DND_SHEET_ID, config.DND_DAMAGE_RANGES_GID)
         register_damage_commands(self, self.damage)
         self.relics = RelicService(config.DND_SHEET_ID, config.DND_RELICS_GID)

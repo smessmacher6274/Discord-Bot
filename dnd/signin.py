@@ -49,8 +49,8 @@ def register_signin_commands(bot, tracker, character_service):
 
     @bot.tree.command(name='party', description='List the characters and users signed in to this server')
     @app_commands.guild_only()
-    async def party(interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+    async def party(interaction: discord.Interaction, show: bool = False):
+        await interaction.response.defer(ephemeral=not show)
         rows = await asyncio.to_thread(tracker.signed_in, interaction.guild_id)
         catalog = await character_service.load() if rows else None
         lines = []
@@ -62,8 +62,8 @@ def register_signin_commands(bot, tracker, character_service):
         chunk = ''
         for line in lines or ['No characters are signed in. Use /signin to join.']:
             if len(chunk) + len(line) + 1 > 1900:
-                await interaction.followup.send(chunk, ephemeral=True,
+                await interaction.followup.send(chunk, ephemeral=not show,
                                                 allowed_mentions=discord.AllowedMentions.none())
                 chunk = ''
             chunk += line + '\n'
-        await interaction.followup.send(chunk, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        await interaction.followup.send(chunk, ephemeral=not show, allowed_mentions=discord.AllowedMentions.none())

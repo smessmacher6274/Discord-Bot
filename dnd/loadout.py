@@ -63,13 +63,13 @@ def register_loadout_commands(bot, service):
     @bot.tree.command(name='loadout', description='Show all relics held by a character')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose a character or enter their Character ID')
-    async def loadout(interaction: discord.Interaction, character: str = None):
-        await interaction.response.defer(ephemeral=True)
+    async def loadout(interaction: discord.Interaction, character: str = None, show: bool = False):
+        await interaction.response.defer(ephemeral=not show)
         catalog, holdings = await service.load()
         selected = catalog.character(await resolve_character(bot, interaction, character))
         embed, files = loadout_response(selected, holdings[selected.id], service.source_url)
         try:
-            await interaction.followup.send(embed=embed, files=files, ephemeral=True,
+            await interaction.followup.send(embed=embed, files=files, ephemeral=not show,
                                             allowed_mentions=discord.AllowedMentions.none())
         finally:
             for file in files:

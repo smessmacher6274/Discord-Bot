@@ -30,6 +30,9 @@ class Tracker:
                     PRIMARY KEY (guild, user), UNIQUE (guild, character));
                 CREATE TABLE IF NOT EXISTS initiative_orders (
                     guild INTEGER PRIMARY KEY, body TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS shinobi_points (
+                    guild INTEGER, character TEXT, points INTEGER NOT NULL CHECK(points IN (0,1)),
+                    PRIMARY KEY (guild, character));
                 CREATE TABLE IF NOT EXISTS resources (
                     guild INTEGER, character TEXT, stat TEXT, baseline INTEGER, current INTEGER,
                     PRIMARY KEY (guild, character, stat));
@@ -70,6 +73,26 @@ class Tracker:
         with self.transaction() as db:
             return [(row['user'], row['character']) for row in db.execute(
                 'SELECT user,character FROM signins WHERE guild=? ORDER BY character', (guild,))]
+
+    def award_shinobi(self, guild, character):
+        with self.transaction() as db:
+            row = db.execute('INSERT INTO shinobi_points VALUES (?,?,1) '
+                             'ON CONFLICT(guild,character) DO UPDATE SET points=1 WHERE points=0',
+                             (guild, character))
+            return bool(row.rowcount)
+
+    def use_shinobi(self, guild, character):
+        with self.transaction() as db:
+            result = db.execute('UPDATE shinobi_points SET points=0 '
+                                'WHERE guild=? AND character=? AND points=1', (guild, character))
+            return bool(result.rowcount)
+
+    def party_points(self, guild):
+        with self.transaction() as db:
+            return [(row['user'], row['character'], row['points']) for row in db.execute(
+                'SELECT s.user,s.character,COALESCE(p.points,0) AS points FROM signins s '
+                'LEFT JOIN shinobi_points p ON s.guild=p.guild AND s.character=p.character '
+                'WHERE s.guild=? ORDER BY s.character', (guild,))]
 
     def save_turn_order(self, guild, body):
         with self.transaction() as db:

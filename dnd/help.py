@@ -25,7 +25,7 @@ PAGES = {
 A roll does not automatically deal damage or spend resources. Record the final outcome using the tracker commands.
 
 **Privacy and access**
-Help and reference lookups are private. Rolls, character trackers, and enemy trackers post in the channel. Everyone can update trackers; character ownership restrictions are not configured. Each server has separate tracker data.
+Help and reference lookups are private by default. Add `show:true` to `/help`, `/skills`, `/abilities`, `/loadout`, `/damage`, `/relic`, `/party`, or `/shinobi` to share the result in the channel; `show:false` keeps it private. Sign-in and account authorization messages stay private. Rolls, character trackers, and enemy trackers post in the channel. Everyone can update trackers; character ownership restrictions are not configured. Each server has separate tracker data.
 
 No voice connection is needed for campaign commands. Music playback and controls require joining the bot's voice channel (or a voice channel before it connects).
 
@@ -43,6 +43,13 @@ The bot rolls two independent d10s for each character signed in to this server, 
 All signed-in characters participate, even if their Discord users are offline. Other servers are excluded. Missing characters or missing, blank, or conditional Willpower modifiers must be fixed before anyone is rolled; no partial order is posted. Any server member can run the command.
 
 `/turnorder` shows the latest saved initiative order without rerolling or loading the Sheet. The order survives restarts and stays unchanged when players sign in or out. Run `/initiative` again to roll and save a fresh order. This does not advance turns, apply damage, or change character stats.'''),
+    'dice': ('Custom dice & shinobi points', '''`/dice dice:3 faces:6 damage_healing:false` rolls 3d6 and shows every die plus the total. Use 1-100 dice with 2-1000 faces. This is separate from the 2d10 `/roll` command and adds no skill modifier.
+
+For damage or healing use `damage_healing:true`. Sign in first with `/signin`. If ANY individual die equals its number of faces (for example a 6 on d6), your signed-in character earns one shinobi point. Multiple maximum dice in one roll still award only one point. Ordinary rolls and `/roll` do not award points. No enemy damage or character healing is automatically applied.
+
+Each character can hold at most one point per server. Earning another while full displays: Should've used your shinobi point dumbass
+
+`/shinobi` shows each party character, user, and point balance. `/shinobi use:true` spends your signed-in character's point. Points survive restarts, switching characters, and sign-out. They belong to the character. Use `show:true` to share the shinobi display.'''),
     'stats': ('Character stats', '''Track **Health, Armor, and Stamina** independently for each character.
 
 **Baseline** is the saved starting value. **Current** is the amount remaining after changes. You do not switch a Sheet cell or edit its formula when using the bot.
@@ -216,8 +223,8 @@ def register_help_command(bot):
     @bot.tree.command(name='help', description='Detailed command guide with examples and a topic menu')
     @app_commands.guild_only()
     @app_commands.choices(topic=[app_commands.Choice(name=title, value=key) for key, (title, _) in PAGES.items()])
-    async def help_command(interaction: discord.Interaction, topic: str = 'start'):
+    async def help_command(interaction: discord.Interaction, topic: str = 'start', show: bool = False):
         if topic not in PAGES:
             raise ValueError('Choose a help topic from the list.')
         await interaction.response.send_message(embed=help_embed(topic), view=HelpView(interaction.user.id, topic),
-                                                 ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+                                                 ephemeral=not show, allowed_mentions=discord.AllowedMentions.none())

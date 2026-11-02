@@ -135,3 +135,18 @@ persist in `data/tracker.sqlite3` until sign-out or switching; back up this data
 `/turnorder` displays the last initiative order without rerolling. It is saved per
 server in the tracker database and survives restarts. Party changes do not alter
 the saved order; run `/initiative` again when ready for a fresh order.
+
+## Visibility, custom dice, and shinobi points
+
+Private lookups accept `show:true` to post publicly, or `show:false` (default)
+to keep the result private: help, skills, abilities, loadout, damage, relic, party,
+and shinobi. Ability/help menu controls still belong to the requesting user.
+
+`/dice dice:3 faces:6 damage_healing:true` rolls 3d6. Any individual maximum die
+earns one shinobi point for your signed-in character. Multiple maximum dice still
+award one point. With damage_healing:false (default), no sign-in is needed and no
+points are awarded. Limits: 1-100 dice, 2-1000 faces. No skill modifier is added.
+`/shinobi` shows party balances; `/shinobi use:true` spends your character's point.
+Points are saved per server/character, capped at one, and survive sign-out and
+restarts. Another award at the cap says "Should've used your shinobi point dumbass".
+No damage or healing is automatically recorded. See `/help topic:dice`.

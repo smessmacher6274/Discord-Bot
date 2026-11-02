@@ -84,13 +84,13 @@ def register_skill_commands(bot, service, character_service):
     @bot.tree.command(name='skills', description='Show all skill roll modifiers for a character')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose your character')
-    async def skills(interaction: discord.Interaction, character: str = None):
-        await interaction.response.defer(ephemeral=True)
+    async def skills(interaction: discord.Interaction, character: str = None, show: bool = False):
+        await interaction.response.defer(ephemeral=not show)
         catalog, records = await service.load()
         selected = catalog.character(await resolve_character(bot, interaction, character))
         embed, files = skill_response(selected, records[selected.id], service.source_url)
         try:
-            await interaction.followup.send(embed=embed, files=files, ephemeral=True,
+            await interaction.followup.send(embed=embed, files=files, ephemeral=not show,
                                             allowed_mentions=discord.AllowedMentions.none())
         finally:
             for file in files:
