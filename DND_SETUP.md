@@ -185,3 +185,17 @@ before starting. Voice connection and Speak permission are required for sounds.
 `/turnstop` cancels the timer; starting another replaces it. One countdown runs
 per server. Active countdowns do not survive restart; saved durations do.
 Rerolling durations leaves an active countdown unchanged.
+
+End of session: `/signout` removes the caller from the roster and clears their
+saved character, while preserving attendance. `/endsession` requires Manage
+Server permission, closes the latest session, signs out everyone in this server,
+and cancels the active turn timer. Attendance history and other character stats
+remain saved. `/attendance` shows the end timestamp. Sign-ins after closure can
+still select a character but do not add attendance until the next `/starttime`.
+Repeated `/endsession` calls retain the original end time. Starting another
+session also closes the previous attendance session at the new start time.
+
+DM sign-in correction: `/kickout player:@User` clears that player's character
+selection and roster entry in this server. Requires Manage Server permission.
+The result is private; the player can run `/signin` again. Attendance history and
+first-arrival times stay saved. This command does not remove members from Discord.

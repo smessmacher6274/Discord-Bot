@@ -34,6 +34,22 @@ def register_signin_commands(bot, tracker, character_service):
             'Everyone: run /signin to record your arrival for this session, even if already signed in. '
             'View times with /attendance.', allowed_mentions=discord.AllowedMentions.none())
 
+    @bot.tree.command(name='endsession', description='End the session, sign everyone out, and stop the turn timer')
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def endsession(interaction: discord.Interaction):
+        ended = int(interaction.created_at.timestamp())
+        await interaction.response.defer()
+        async with bot.turn_timers.locks.setdefault(interaction.guild_id, asyncio.Lock()):
+            identifier, ended, count = await asyncio.to_thread(
+                tracker.end_session, interaction.guild_id, interaction.user.id, ended)
+            await bot.turn_timers.stop(interaction.guild_id)
+        label = f'Session **{identifier}** ended at <t:{ended}:F>.' if identifier else 'No session was active.'
+        await interaction.followup.send(
+            f'{label} Signed out **{count}** player(s). Turn timer stopped. Attendance history preserved.',
+            allowed_mentions=discord.AllowedMentions.none())
+
     @bot.tree.command(name='attendance', description='Show session sign-in times and elapsed time')
     @app_commands.guild_only()
     async def attendance(interaction: discord.Interaction, session: int = None,
@@ -43,6 +59,8 @@ def register_signin_commands(bot, tracker, character_service):
             tracker.attendance, interaction.guild_id, session)
         catalog = await character_service.load() if rows else None
         lines = [f'Session **{identifier}** — start: <t:{started}:F>']
+        ended = await asyncio.to_thread(tracker.session_ended, interaction.guild_id, identifier)
+        lines.append(f'Ended: <t:{ended}:F>' if ended is not None else 'Session is active.')
         for user, character, arrived in rows:
             selected = catalog.characters.get(character)
             label = discord.utils.escape_markdown(selected.name if selected else character)
@@ -93,7 +111,22 @@ def register_signin_commands(bot, tracker, character_service):
     async def signout(interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         await asyncio.to_thread(tracker.signout, interaction.guild_id, interaction.user.id)
-        await interaction.followup.send('Signed out. Your saved character has been cleared.', ephemeral=True)
+        await interaction.followup.send(
+            'Signed out. Your saved character has been cleared. Attendance history is preserved.', ephemeral=True)
+
+    @bot.tree.command(name='kickout', description='DM: remove a player’s character sign-in from the roster')
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.describe(player='Select the player whose character sign-in should be cleared')
+    async def kickout(interaction: discord.Interaction, player: discord.User):
+        await interaction.response.defer(ephemeral=True)
+        removed = await asyncio.to_thread(tracker.signout, interaction.guild_id, player.id)
+        message = (f'Cleared <@{player.id}>’s character sign-in. They can use /signin to choose again. '
+                   'Attendance history is preserved.' if removed else
+                   f'<@{player.id}> is not signed in to a character in this server.')
+        await interaction.followup.send(message, ephemeral=True,
+                                        allowed_mentions=discord.AllowedMentions.none())
 
     @bot.tree.command(name='party', description='List the characters and users signed in to this server')
     @app_commands.guild_only()

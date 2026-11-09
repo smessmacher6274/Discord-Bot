@@ -369,15 +369,29 @@ async def volume(interaction: discord.Interaction, level: app_commands.Range[int
 @bot.tree.error
 async def command_error(interaction, error):
     original = getattr(error, 'original', error)
+    command = getattr(getattr(interaction, 'command', None), 'qualified_name', 'unknown')
+    created = getattr(interaction, 'created_at', None)
+    age = (discord.utils.utcnow() - created).total_seconds() if created else None
+    if isinstance(original, discord.HTTPException) and original.code in (10062, 40060):
+        logging.warning(
+            'Interaction unavailable: command=%s code=%s age_seconds=%s. '
+            'Check host load, Discord connectivity, and duplicate bot instances.',
+            command, original.code, round(age, 3) if age is not None else 'unknown')
+        return
     if isinstance(original, (ValueError, app_commands.CommandOnCooldown)):
         message = str(original)
     else:
         logging.error('Command failed', exc_info=(type(original), original, original.__traceback__))
         message = 'Command failed. Check bot permissions, audio configuration, and the console.'
-    if interaction.response.is_done():
-        await interaction.followup.send(message, ephemeral=True)
-    else:
-        await interaction.response.send_message(message, ephemeral=True)
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+    except discord.HTTPException as response_error:
+        # An expired interaction cannot carry its own error message. Do not retry it.
+        logging.warning('Could not deliver command error: command=%s code=%s age_seconds=%s',
+                        command, response_error.code, round(age, 3) if age is not None else 'unknown')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

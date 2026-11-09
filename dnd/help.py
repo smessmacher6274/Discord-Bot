@@ -41,6 +41,11 @@ No voice connection is needed for campaign commands. Music playback and controls
 `/help` opens this guide. `/help topic:stats` opens a topic directly. If the menu expires after 10 minutes, run `/help` again. AI image generation is currently disabled.'''),
     'signin': ('Character sign-in', '''`/signin character:Ryujin` saves your character in this server. Omit character from `/roll`, `/skills`, `/abilities`, `/loadout`, `/stats` commands, and `/enemy damage` to use it automatically. Roll skill suggestions also use your saved character. Discord does not visibly prefill the character field.
 
+**End of session**
+`/kickout player:@User` lets the DM clear another player's character sign-in so they can sign in again correctly. Requires Manage Server permission. The response is private and attendance history stays saved. This removes their character selection only; the player stays in Discord.
+
+`/signout` removes only you from the signed-in roster and clears your saved character. Your attendance record stays saved. The DM uses `/endsession` (requires Manage Server) to close attendance, sign everyone out in this server, and stop the active turn timer. Attendance history remains available. Use `/starttime` to open the next session.
+
 **Session attendance**
 The DM runs `/starttime` at session start (requires Manage Server permission). Everyone then runs `/signin`, even if already signed in. Your first successful sign-in records arrival time and elapsed minutes/seconds after start. Switching characters or signing out does not reset that record. `/attendance` shows the latest session privately; add `visibility:Show` to share or `session:<id>` for history. Each `/starttime` creates a new session and keeps previous records. Times survive restarts. Penalties are decided by the DM; none are applied automatically.
 

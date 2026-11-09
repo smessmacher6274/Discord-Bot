@@ -36,6 +36,8 @@ class Tracker:
                 CREATE TABLE IF NOT EXISTS attendance_entries (
                     session INTEGER, user INTEGER, character TEXT NOT NULL, arrived INTEGER NOT NULL,
                     PRIMARY KEY (session, user));
+                CREATE TABLE IF NOT EXISTS attendance_closures (
+                    session INTEGER PRIMARY KEY, ended INTEGER NOT NULL, actor INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS initiative_orders (
                     guild INTEGER PRIMARY KEY, body TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS turn_durations (
@@ -97,9 +99,32 @@ class Tracker:
     def start_session(self, guild, actor, started=None):
         started = int(time.time() if started is None else started)
         with self.transaction() as db:
+            db.execute('INSERT OR IGNORE INTO attendance_closures '
+                       'SELECT id,?,? FROM attendance_sessions WHERE guild=?', (started, actor, guild))
             result = db.execute('INSERT INTO attendance_sessions(guild,started,actor) VALUES (?,?,?)',
                                 (guild, started, actor))
             return result.lastrowid, started
+
+    def end_session(self, guild, actor, ended=None):
+        ended = int(time.time() if ended is None else ended)
+        with self.transaction() as db:
+            session = db.execute('SELECT id FROM attendance_sessions WHERE guild=? '
+                                 'ORDER BY id DESC LIMIT 1', (guild,)).fetchone()
+            identifier = session['id'] if session else None
+            if identifier is not None:
+                db.execute('INSERT OR IGNORE INTO attendance_closures VALUES (?,?,?)',
+                           (identifier, ended, actor))
+                ended = db.execute('SELECT ended FROM attendance_closures WHERE session=?',
+                                   (identifier,)).fetchone()['ended']
+            count = db.execute('DELETE FROM signins WHERE guild=?', (guild,)).rowcount
+            return identifier, ended, count
+
+    def session_ended(self, guild, session):
+        with self.transaction() as db:
+            row = db.execute('SELECT c.ended FROM attendance_closures c '
+                             'JOIN attendance_sessions s ON s.id=c.session WHERE s.guild=? AND s.id=?',
+                             (guild, session)).fetchone()
+            return row['ended'] if row else None
 
     def attendance(self, guild, session=None):
         with self.transaction() as db:
@@ -121,9 +146,10 @@ class Tracker:
                            'DO UPDATE SET character=excluded.character', (guild, user, character))
             except sqlite3.IntegrityError:
                 raise ValueError('That character is already signed in by another user.') from None
-            session = db.execute('SELECT id,started FROM attendance_sessions WHERE guild=? '
-                                 'ORDER BY id DESC LIMIT 1', (guild,)).fetchone()
-            if session is not None and arrived >= session['started']:
+            session = db.execute('SELECT s.id,s.started,c.ended FROM attendance_sessions s '
+                                 'LEFT JOIN attendance_closures c ON c.session=s.id WHERE s.guild=? '
+                                 'ORDER BY s.id DESC LIMIT 1', (guild,)).fetchone()
+            if session is not None and session['ended'] is None and arrived >= session['started']:
                 db.execute('INSERT OR IGNORE INTO attendance_entries VALUES (?,?,?,?)',
                            (session['id'], user, character, arrived))
                 entry = db.execute('SELECT arrived FROM attendance_entries WHERE session=? AND user=?',
@@ -132,7 +158,7 @@ class Tracker:
 
     def signout(self, guild, user):
         with self.transaction() as db:
-            db.execute('DELETE FROM signins WHERE guild=? AND user=?', (guild, user))
+            return bool(db.execute('DELETE FROM signins WHERE guild=? AND user=?', (guild, user)).rowcount)
 
     def signed_character(self, guild, user):
         with self.transaction() as db:

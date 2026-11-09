@@ -81,6 +81,80 @@ class SigninTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Hero', result.args[0])
         self.assertIn('1m 5s', result.args[0])
 
+    async def test_end_session_persists_history_and_closes_attendance(self):
+        tracker = self.bot.tracker
+        first, _ = tracker.start_session(1, 99, started=100)
+        tracker.signin(1, 10, 'A', arrived=120)
+        tracker.signin(2, 20, 'B', arrived=125)
+        self.assertEqual(tracker.end_session(1, 99, ended=200), (first, 200, 1))
+        reopened = Tracker(tracker.path)
+        self.assertEqual(reopened.signed_in(1), [])
+        self.assertEqual(reopened.signed_in(2), [(20, 'B')])
+        self.assertEqual(reopened.attendance(1, first)[2], [(10, 'A', 120)])
+        self.assertEqual(reopened.session_ended(1, first), 200)
+        self.assertIsNone(reopened.session_ended(2, first))
+        self.assertIsNone(reopened.signin(1, 20, 'B', arrived=220))
+        self.assertEqual(reopened.attendance(1)[2], [(10, 'A', 120)])
+        self.assertEqual(reopened.end_session(1, 99, ended=250), (first, 200, 1))
+        second, _ = reopened.start_session(1, 99, started=300)
+        self.assertEqual(reopened.signin(1, 10, 'A', arrived=330), (300, 330))
+        self.assertIsNone(reopened.session_ended(1, second))
+        self.assertEqual(reopened.session_ended(1, first), 200)
+
+    async def test_start_closes_previous_session_and_end_without_start_clears_roster(self):
+        tracker = self.bot.tracker
+        tracker.signin(1, 10, 'A')
+        self.assertEqual(tracker.end_session(1, 99, ended=50), (None, 50, 1))
+        first, _ = tracker.start_session(1, 99, started=100)
+        tracker.start_session(1, 99, started=200)
+        self.assertEqual(tracker.session_ended(1, first), 200)
+
+    async def test_endsession_command_permissions_timer_and_attendance_display(self):
+        from datetime import datetime, timezone
+        from discord import app_commands
+        command = self.bot.tree.get_command('endsession')
+        self.interaction.permissions = SimpleNamespace(manage_guild=False)
+        with self.assertRaises(app_commands.MissingPermissions):
+            command.checks[0](self.interaction)
+        self.interaction.permissions.manage_guild = True
+        self.assertTrue(command.checks[0](self.interaction))
+        self.bot.tracker.start_session(1, 99, started=100)
+        self.bot.tracker.signin(1, 10, 'A', arrived=120)
+        self.interaction.created_at = datetime.fromtimestamp(200, timezone.utc)
+        with patch.object(self.bot.turn_timers, 'stop', new_callable=AsyncMock) as stop:
+            await command.callback(self.interaction)
+            stop.assert_awaited_once_with(1)
+        self.assertEqual(self.bot.tracker.signed_in(1), [])
+        self.assertIn('Signed out **1**', self.interaction.followup.send.call_args.args[0])
+        await self.bot.tree.get_command('attendance').callback(self.interaction)
+        self.assertIn('Ended: <t:200:F>', self.interaction.followup.send.call_args.args[0])
+
+    async def test_kickout_permissions_server_isolation_and_history(self):
+        from discord import app_commands
+        command = self.bot.tree.get_command('kickout')
+        self.interaction.permissions = SimpleNamespace(manage_guild=False)
+        with self.assertRaises(app_commands.MissingPermissions):
+            command.checks[0](self.interaction)
+        self.interaction.permissions.manage_guild = True
+        self.assertTrue(command.checks[0](self.interaction))
+        tracker = self.bot.tracker
+        session, _ = tracker.start_session(1, 99, started=100)
+        tracker.signin(1, 10, 'A', arrived=120)
+        tracker.signin(1, 20, 'B', arrived=130)
+        tracker.signin(2, 10, 'A', arrived=140)
+        await command.callback(self.interaction, SimpleNamespace(id=10))
+        self.assertIsNone(tracker.signed_character(1, 10))
+        self.assertEqual(tracker.signed_character(1, 20), 'B')
+        self.assertEqual(tracker.signed_character(2, 10), 'A')
+        self.assertEqual(tracker.attendance(1, session)[2], [(10, 'A', 120), (20, 'B', 130)])
+        payload = self.interaction.followup.send.call_args
+        self.assertTrue(payload.kwargs['ephemeral'])
+        self.assertIn('Cleared <@10>', payload.args[0])
+        await command.callback(self.interaction, SimpleNamespace(id=10))
+        self.assertIn('not signed in', self.interaction.followup.send.call_args.args[0])
+        tracker.signout(1, 20)
+        self.assertEqual(tracker.signin(1, 10, 'B', arrived=150), (100, 120))
+
     async def test_signin_roster_signout_and_missing_default(self):
         await self.bot.tree.get_command('signin').callback(self.interaction, 'Hero')
         self.assertEqual(await resolve_character(self.bot, self.interaction), 'A')
