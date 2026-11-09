@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 
 import discord
+from dnd.visibility import Visibility
 from discord import app_commands
 from dnd.abilities import AbilityError, AbilityService, required_text, table
 
@@ -70,8 +71,8 @@ def register_relic_commands(bot, service):
     @bot.tree.command(name='relic', description='Look up a relic’s description')
     @app_commands.guild_only()
     @app_commands.describe(relic='Choose a relic')
-    async def relic(interaction: discord.Interaction, relic: str, show: bool = False):
-        await interaction.response.defer(ephemeral=not show)
+    async def relic(interaction: discord.Interaction, relic: str, visibility: Visibility = Visibility.Hide):
+        await interaction.response.defer(ephemeral=visibility != Visibility.Show)
         relics = await service.load()
         selected = relics.get(relic.strip().casefold())
         if selected is None:
@@ -81,7 +82,7 @@ def register_relic_commands(bot, service):
             raise AbilityError('Relic not found. Choose a relic from autocomplete.')
         embed, files = relic_response(selected, service.source_url)
         try:
-            await interaction.followup.send(embed=embed, files=files, ephemeral=not show,
+            await interaction.followup.send(embed=embed, files=files, ephemeral=visibility != Visibility.Show,
                                             allowed_mentions=discord.AllowedMentions.none())
         finally:
             for file in files:

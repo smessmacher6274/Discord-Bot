@@ -20,6 +20,16 @@ class TrackerTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_skill_dice_persist_and_are_isolated(self):
+        self.assertEqual(self.tracker.roll_skill(1, 'CHR1', lambda _: 9),
+                         ([10, 10], 3, 'Rule of Cool'))
+        reopened = Tracker(self.path)
+        self.assertEqual(reopened.roll_skill(1, 'CHR1', lambda _: 4), ([5, 5, 5], 3, None))
+        self.assertEqual(reopened.roll_skill(2, 'CHR1', lambda _: 4), ([5, 5], 2, None))
+        self.assertEqual(reopened.roll_skill(1, 'CHR2', lambda _: 4), ([5, 5], 2, None))
+        reopened.restore_skill_dice(1, 'CHR1')
+        self.assertEqual(reopened.roll_skill(1, 'CHR1', lambda _: 4), ([5, 5], 2, None))
+
     def test_stats_persist_baselines_and_resets(self):
         seed = {'Health': 10, 'Armor': 17}
         self.assertEqual(self.tracker.resources(1, 'CHR1', seed)['Health'], (10, 10))

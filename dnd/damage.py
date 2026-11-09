@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 
 import discord
+from dnd.visibility import Visibility
 from discord import app_commands
 from dnd.abilities import AbilityError, AbilityService, required_text, table
 
@@ -64,15 +65,15 @@ def register_damage_commands(bot, service):
     @bot.tree.command(name='damage', description='Look up a weapon’s melee range, ranged range, and damage roll')
     @app_commands.guild_only()
     @app_commands.describe(weapon='Choose a weapon type from Damage ranges')
-    async def damage(interaction: discord.Interaction, weapon: str, show: bool = False):
-        await interaction.response.defer(ephemeral=not show)
+    async def damage(interaction: discord.Interaction, weapon: str, visibility: Visibility = Visibility.Hide):
+        await interaction.response.defer(ephemeral=visibility != Visibility.Show)
         weapons = await service.load()
         selected = weapons.get(weapon.strip().casefold())
         if selected is None:
             raise AbilityError('Weapon not found. Choose a weapon from autocomplete.')
         embed, files = damage_response(selected, service.source_url)
         try:
-            await interaction.followup.send(embed=embed, files=files, ephemeral=not show,
+            await interaction.followup.send(embed=embed, files=files, ephemeral=visibility != Visibility.Show,
                                             allowed_mentions=discord.AllowedMentions.none())
         finally:
             for file in files:

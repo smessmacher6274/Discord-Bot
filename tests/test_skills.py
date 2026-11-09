@@ -1,6 +1,9 @@
+import tempfile
+from pathlib import Path
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from dnd.tracker import Tracker
 from dnd.abilities import AbilityError
 from dnd.skills import SkillService, parse_skills, skill_response
 import main
@@ -41,6 +44,32 @@ class SkillParsingTests(unittest.TestCase):
 
 
 class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.tracker_patch = patch('main.Tracker', side_effect=lambda _: Tracker(Path(self.temp.name) / 'tracker.sqlite3'))
+        self.tracker_patch.start()
+        self.addCleanup(self.tracker_patch.stop)
+
+    async def test_cool_drool_and_restore(self):
+        bot = main.Bot()
+        bot.skills.gids = ('0', '123')
+        bot.skills.fetch_tabs = AsyncMock(return_value=(CHARACTERS, SKILLS))
+        interaction = SimpleNamespace(guild_id=1, response=SimpleNamespace(defer=AsyncMock()),
+                                      followup=SimpleNamespace(send=AsyncMock()))
+        roll = bot.tree.get_command('roll').callback
+        for values, expected, event in [([9, 9], 3, 'Cool'), ([0, 0, 0], 2, 'Drool'),
+                                         ([0, 0], 1, 'Drool'), ([0], 1, 'Drool')]:
+            with patch('dnd.skills.secrets.randbelow', side_effect=values):
+                await roll(interaction, skill='Navigation', character='Ryujin')
+            description = interaction.followup.send.call_args.kwargs['embed'].description
+            self.assertIn(f'Rule of {event}', description)
+            self.assertIn(f'Next skill roll: **{expected}d10**', description)
+        await bot.tree.get_command('restore').callback(interaction, character='Ryujin')
+        with patch('dnd.skills.secrets.randbelow', side_effect=[3, 4]) as dice:
+            await roll(interaction, skill='Willpower', character='Ryujin')
+        self.assertEqual(dice.call_count, 2)
+
     async def test_blank_modifiers_do_not_break_other_skills_or_autocomplete(self):
         bot = main.Bot()
         bot.skills.gids = ('0', '123')
@@ -66,7 +95,7 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
         bot = main.Bot()
         bot.skills.gids = ('0', '123')
         bot.skills.fetch_tabs = AsyncMock(return_value=(CHARACTERS, SKILLS))
-        interaction = SimpleNamespace(response=SimpleNamespace(defer=AsyncMock()),
+        interaction = SimpleNamespace(guild_id=1, response=SimpleNamespace(defer=AsyncMock()),
                                       followup=SimpleNamespace(send=AsyncMock()))
         with patch('dnd.skills.secrets.randbelow', side_effect=[0, 9]) as dice:
             await bot.tree.get_command('roll').callback(interaction, character='Krusty', skill='navigation')
@@ -102,7 +131,7 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
         bot = main.Bot()
         bot.skills.gids = ('0', '123')
         bot.skills.fetch_tabs = AsyncMock(return_value=(CHARACTERS, SKILLS))
-        interaction = SimpleNamespace(response=SimpleNamespace(defer=AsyncMock()),
+        interaction = SimpleNamespace(guild_id=1, response=SimpleNamespace(defer=AsyncMock()),
                                       followup=SimpleNamespace(send=AsyncMock()))
         await bot.tree.get_command('skills').callback(interaction, 'Ryujin')
         result = interaction.followup.send.call_args.kwargs

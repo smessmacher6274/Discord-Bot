@@ -3,6 +3,7 @@ import asyncio
 import io
 import logging
 import discord
+from dnd.visibility import Visibility
 from discord import app_commands
 from dnd.abilities import AbilityError
 
@@ -115,13 +116,13 @@ def register_ability_commands(bot, service):
     @bot.tree.command(name='abilities', description='Browse a character’s homebrew abilities')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose your character')
-    async def abilities(interaction: discord.Interaction, character: str = None, show: bool = False):
-        await interaction.response.defer(ephemeral=not show)
+    async def abilities(interaction: discord.Interaction, character: str = None, visibility: Visibility = Visibility.Hide):
+        await interaction.response.defer(ephemeral=visibility != Visibility.Show)
         catalog = await service.load()
         selected = catalog.character(await resolve_character(bot, interaction, character))
         view = AbilityView(service, catalog, selected.id, interaction.user.id)
         embed, _ = view.embed()
-        await interaction.followup.send(embed=embed, view=view, ephemeral=not show,
+        await interaction.followup.send(embed=embed, view=view, ephemeral=visibility != Visibility.Show,
                                         allowed_mentions=discord.AllowedMentions.none())
 
     @abilities.autocomplete('character')

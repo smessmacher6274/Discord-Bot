@@ -3,6 +3,7 @@ import asyncio
 import secrets
 
 import discord
+from dnd.visibility import Visibility
 from discord import app_commands
 from dnd.signin import resolve_character
 
@@ -13,7 +14,7 @@ def register_dice_commands(bot, tracker, characters):
     @app_commands.describe(dice='Number of dice (1-100)', faces='Faces per die (2-1000)',
                            damage_healing='True for damage/healing: any maximum die earns a shinobi point')
     async def dice(interaction: discord.Interaction, dice: app_commands.Range[int, 1, 100],
-                   faces: app_commands.Range[int, 2, 1000], damage_healing: bool = False):
+                   faces: app_commands.Range[int, 2, 1000], damage_healing: bool):
         await interaction.response.defer()
         if not 1 <= dice <= 100 or not 2 <= faces <= 1000:
             raise ValueError('Use 1-100 dice with 2-1000 faces each.')
@@ -36,9 +37,9 @@ def register_dice_commands(bot, tracker, characters):
 
     @bot.tree.command(name='shinobi', description='Show party shinobi points, or spend your saved point')
     @app_commands.guild_only()
-    @app_commands.describe(use='Spend your signed-in character’s point', show='Show the result to everyone')
-    async def shinobi(interaction: discord.Interaction, use: bool = False, show: bool = False):
-        await interaction.response.defer(ephemeral=not show)
+    @app_commands.describe(use='Spend your signed-in character’s point', visibility='Show to everyone or Hide so only you can see it')
+    async def shinobi(interaction: discord.Interaction, use: bool = False, visibility: Visibility = Visibility.Hide):
+        await interaction.response.defer(ephemeral=visibility != Visibility.Show)
         prefix = ''
         if use:
             identifier = await resolve_character(bot, interaction)
@@ -57,6 +58,6 @@ def register_dice_commands(bot, tracker, characters):
             split = text.rfind('\n', 0, 1900) if len(text) > 1900 else len(text)
             if split <= 0:
                 split = 1900
-            await interaction.followup.send(text[:split], ephemeral=not show,
+            await interaction.followup.send(text[:split], ephemeral=visibility != Visibility.Show,
                                             allowed_mentions=discord.AllowedMentions.none())
             text = text[split:].lstrip('\n')

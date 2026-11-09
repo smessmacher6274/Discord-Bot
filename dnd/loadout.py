@@ -5,6 +5,7 @@ import io
 import time
 
 import discord
+from dnd.visibility import Visibility
 from discord import app_commands
 from dnd.abilities import AbilityError, AbilityService, parse_catalog, required_text, table
 
@@ -63,13 +64,13 @@ def register_loadout_commands(bot, service):
     @bot.tree.command(name='loadout', description='Show all relics held by a character')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose a character or enter their Character ID')
-    async def loadout(interaction: discord.Interaction, character: str = None, show: bool = False):
-        await interaction.response.defer(ephemeral=not show)
+    async def loadout(interaction: discord.Interaction, character: str = None, visibility: Visibility = Visibility.Hide):
+        await interaction.response.defer(ephemeral=visibility != Visibility.Show)
         catalog, holdings = await service.load()
         selected = catalog.character(await resolve_character(bot, interaction, character))
         embed, files = loadout_response(selected, holdings[selected.id], service.source_url)
         try:
-            await interaction.followup.send(embed=embed, files=files, ephemeral=not show,
+            await interaction.followup.send(embed=embed, files=files, ephemeral=visibility != Visibility.Show,
                                             allowed_mentions=discord.AllowedMentions.none())
         finally:
             for file in files:

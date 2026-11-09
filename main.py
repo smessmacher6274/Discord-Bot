@@ -24,6 +24,7 @@ from dnd.tracker import Tracker, register_tracker_commands
 from dnd.help import register_help_command
 from dnd.signin import register_signin_commands
 from dnd.initiative import register_initiative_command
+from dnd.turntimer import ChimeSource, register_turntimer_commands
 from dnd.dice import register_dice_commands
 # AI image generation disabled for deployment; implementation kept for later.
 # from services.image_generation import ImageGenerator
@@ -47,6 +48,7 @@ class Bot(commands.Bot):
         register_tracker_commands(self, self.tracker, self.skills)
         register_signin_commands(self, self.tracker, self.abilities)
         register_initiative_command(self, self.tracker, self.skills)
+        register_turntimer_commands(self, self.tracker, self.skills)
         register_dice_commands(self, self.tracker, self.abilities)
         self.damage = DamageService(config.DND_SHEET_ID, config.DND_DAMAGE_RANGES_GID)
         register_damage_commands(self, self.damage)
@@ -79,6 +81,7 @@ class Bot(commands.Bot):
         await self.register_guild(guild)
 
     async def close(self):
+        await self.turn_timers.close()
         self.spotify.clear()
         await asyncio.gather(*(p.close() for p in self.players.values()), return_exceptions=True)
         await super().close()
@@ -356,8 +359,11 @@ async def volume(interaction: discord.Interaction, level: app_commands.Range[int
     player, _ = player_for(interaction)
     async with player.lock:
         player.volume = level / 100
-        if player.voice and isinstance(player.voice.source, discord.PCMVolumeTransformer):
-            player.voice.source.volume = player.volume
+        source = player.voice.source if player.voice else None
+        if isinstance(source, ChimeSource):
+            source = source.base
+        if isinstance(source, discord.PCMVolumeTransformer):
+            source.volume = player.volume
     await interaction.response.send_message(f'Volume: {level}%.')
 
 @bot.tree.error

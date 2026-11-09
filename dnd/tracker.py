@@ -1,8 +1,10 @@
 """Persistent, server-scoped character resources and enemy damage totals."""
 import asyncio
 import io
+import json
 import re
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -28,8 +30,19 @@ class Tracker:
                 CREATE TABLE IF NOT EXISTS signins (
                     guild INTEGER, user INTEGER, character TEXT,
                     PRIMARY KEY (guild, user), UNIQUE (guild, character));
+                CREATE TABLE IF NOT EXISTS attendance_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, guild INTEGER NOT NULL,
+                    started INTEGER NOT NULL, actor INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS attendance_entries (
+                    session INTEGER, user INTEGER, character TEXT NOT NULL, arrived INTEGER NOT NULL,
+                    PRIMARY KEY (session, user));
                 CREATE TABLE IF NOT EXISTS initiative_orders (
                     guild INTEGER PRIMARY KEY, body TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS turn_durations (
+                    guild INTEGER PRIMARY KEY, body TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS skill_dice (
+                    guild INTEGER, character TEXT, dice INTEGER NOT NULL CHECK(dice >= 1),
+                    PRIMARY KEY (guild, character));
                 CREATE TABLE IF NOT EXISTS shinobi_points (
                     guild INTEGER, character TEXT, points INTEGER NOT NULL CHECK(points IN (0,1)),
                     PRIMARY KEY (guild, character));
@@ -52,13 +65,70 @@ class Tracker:
         finally:
             db.close()
 
-    def signin(self, guild, user, character):
+    def save_turn_times(self, guild, rows):
+        with self.transaction() as db:
+            db.execute('INSERT INTO turn_durations VALUES (?,?) ON CONFLICT(guild) '
+                       'DO UPDATE SET body=excluded.body', (guild, json.dumps(rows)))
+
+    def turn_times(self, guild):
+        with self.transaction() as db:
+            row = db.execute('SELECT body FROM turn_durations WHERE guild=?', (guild,)).fetchone()
+            return json.loads(row['body']) if row else []
+
+    def roll_skill(self, guild, character, randbelow):
+        with self.transaction() as db:
+            row = db.execute('SELECT dice FROM skill_dice WHERE guild=? AND character=?',
+                             (guild, character)).fetchone()
+            count = row['dice'] if row else 2
+            rolls = [randbelow(10) + 1 for _ in range(count)]
+            event = 'Rule of Cool' if all(die == 10 for die in rolls) else (
+                'Rule of Drool' if all(die == 1 for die in rolls) else None)
+            next_count = count + 1 if event == 'Rule of Cool' else (
+                max(1, count - 1) if event == 'Rule of Drool' else count)
+            db.execute('INSERT INTO skill_dice VALUES (?,?,?) ON CONFLICT(guild,character) '
+                       'DO UPDATE SET dice=excluded.dice', (guild, character, next_count))
+            return rolls, next_count, event
+
+    def restore_skill_dice(self, guild, character):
+        with self.transaction() as db:
+            db.execute('INSERT INTO skill_dice VALUES (?,?,2) ON CONFLICT(guild,character) '
+                       'DO UPDATE SET dice=2', (guild, character))
+
+    def start_session(self, guild, actor, started=None):
+        started = int(time.time() if started is None else started)
+        with self.transaction() as db:
+            result = db.execute('INSERT INTO attendance_sessions(guild,started,actor) VALUES (?,?,?)',
+                                (guild, started, actor))
+            return result.lastrowid, started
+
+    def attendance(self, guild, session=None):
+        with self.transaction() as db:
+            row = db.execute('SELECT id,started FROM attendance_sessions WHERE guild=? '
+                             + ('ORDER BY id DESC LIMIT 1' if session is None else 'AND id=?'),
+                             (guild,) if session is None else (guild, session)).fetchone()
+            if row is None:
+                raise ValueError('No session found. The DM must run /starttime first.')
+            entries = [tuple(entry) for entry in db.execute(
+                'SELECT user,character,arrived FROM attendance_entries WHERE session=? '
+                'ORDER BY arrived,user', (row['id'],))]
+            return row['id'], row['started'], entries
+
+    def signin(self, guild, user, character, arrived=None):
+        arrived = int(time.time() if arrived is None else arrived)
         with self.transaction() as db:
             try:
                 db.execute('INSERT INTO signins VALUES (?,?,?) ON CONFLICT(guild,user) '
                            'DO UPDATE SET character=excluded.character', (guild, user, character))
             except sqlite3.IntegrityError:
                 raise ValueError('That character is already signed in by another user.') from None
+            session = db.execute('SELECT id,started FROM attendance_sessions WHERE guild=? '
+                                 'ORDER BY id DESC LIMIT 1', (guild,)).fetchone()
+            if session is not None and arrived >= session['started']:
+                db.execute('INSERT OR IGNORE INTO attendance_entries VALUES (?,?,?,?)',
+                           (session['id'], user, character, arrived))
+                entry = db.execute('SELECT arrived FROM attendance_entries WHERE session=? AND user=?',
+                                   (session['id'], user)).fetchone()
+                return session['started'], entry['arrived']
 
     def signout(self, guild, user):
         with self.transaction() as db:

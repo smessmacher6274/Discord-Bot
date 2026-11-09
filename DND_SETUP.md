@@ -52,7 +52,7 @@ Set `DND_RELICS_GID` in `.env` to its numeric tab GID and restart
 the bot. Descriptions refresh after 60 seconds; long descriptions include a full
 text attachment. Relics load independently of character and ability assignments.
 
-`/roll character:Ryujin skill:Willpower` rolls two independent d10s, adds the
+`/roll character:Ryujin skill:Willpower` starts with two independent d10s, adds the
 selected character's whole-number skill modifier, and posts both dice, the modifier,
 and total in the channel. Choose the character first; skill autocomplete lists only
 that character's skills with their modifiers (for example `Melee +7`). No additional ability bonuses are inferred. Conditional
@@ -138,15 +138,50 @@ the saved order; run `/initiative` again when ready for a fresh order.
 
 ## Visibility, custom dice, and shinobi points
 
-Private lookups accept `show:true` to post publicly, or `show:false` (default)
+Private lookups accept `visibility:Show` to post publicly, or `visibility:Hide` (default)
 to keep the result private: help, skills, abilities, loadout, damage, relic, party,
 and shinobi. Ability/help menu controls still belong to the requesting user.
 
 `/dice dice:3 faces:6 damage_healing:true` rolls 3d6. Any individual maximum die
 earns one shinobi point for your signed-in character. Multiple maximum dice still
-award one point. With damage_healing:false (default), no sign-in is needed and no
+award one point. With damage_healing:false, no sign-in is needed and no
 points are awarded. Limits: 1-100 dice, 2-1000 faces. No skill modifier is added.
 `/shinobi` shows party balances; `/shinobi use:true` spends your character's point.
 Points are saved per server/character, capped at one, and survive sign-out and
 restarts. Another award at the cap says "Should've used your shinobi point dumbass".
 No damage or healing is automatically recorded. See `/help topic:dice`.
+
+The damage_healing true/false choice is required on every `/dice` command.
+Visibility is a single Show/Hide choice; Hide remains the default.
+
+Rule of Cool/Drool: `/roll` saves one dice pool per character per server across
+restarts. All dice showing 10 adds one die to future skill rolls; all dice showing
+1 removes one, with a minimum of 1d10. The triggering roll uses the original pool.
+`/restore character:Ryujin` resets that pool to 2d10 (omit character to use your
+signed-in character). These rules apply to skill `/roll` only.
+
+Attendance: `/starttime` starts a new session immediately. It requires Manage
+Server permission (default visibility and runtime check). The DM can further
+restrict command access through Discord integration settings. Each call creates
+a new session; previous attendance remains saved. Players must run `/signin`
+after the start, even if they already have a saved character. The first successful
+sign-in per Discord user per session records arrival and elapsed time; switching
+characters, signing out, or signing in again does not overwrite it. Times use
+Discord command timestamps and display in each viewer's local timezone.
+`/attendance` shows the latest session privately; use `visibility:Show` to share,
+or `session:<id>` to view a previous session from this server. Timing history
+survives restarts in the tracker database. No penalties are automatically applied.
+
+Turn timers: `/turntimer roll` rolls exactly 2d10 plus the higher of Decipher or
+Reflex for each signed-in character, without using or changing Cool/Drool. Both
+skills need whole-number modifiers. Totals <=17 give 1 minute, 18-21 give 2,
+22-25 give 3, and every additional 4 gives another minute. `/turntimer view`
+shows the saved results, which survive restarts in the tracker database.
+`/turnstart character:Ryujin` starts the saved duration for a signed-in character.
+Join voice first; the bot joins that channel or requires you to join its existing
+channel. Distinct chimes play at start, 10 seconds remaining, and expiry, with
+text mentions of the player. Chimes mix over PCM music. Resume paused music
+before starting. Voice connection and Speak permission are required for sounds.
+`/turnstop` cancels the timer; starting another replaces it. One countdown runs
+per server. Active countdowns do not survive restart; saved durations do.
+Rerolling durations leaves an active countdown unchanged.

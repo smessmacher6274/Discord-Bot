@@ -1,15 +1,24 @@
 """Player-facing guide to the bot's active commands."""
 import discord
+from dnd.visibility import Visibility
 from discord import app_commands
 
 
 PAGES = {
+    'turntimer': ('Turn timers', '''`/turntimer roll`
+Rolls exactly 2d10 plus the higher of Decipher and Reflex for every signed-in character. Both modifiers must be whole numbers. Cool/Drool is neither used nor changed. Totals 17 or lower grant 1 minute, 18–21 grant 2 minutes, 22–25 grant 3 minutes, and every additional 4 adds another minute.
+
+`/turntimer view` shows saved durations without rerolling. Results survive restarts; rolling again replaces the saved party results.
+
+`/turnstart character:Ryujin` starts that signed-in character's saved duration. Join the bot's voice channel first, or it joins yours. Sounds play at the start, 10 seconds remaining, and the end. Text alerts mention the player. Everyone must be in voice to hear sounds. Chimes mix with music; resume paused music before starting a timer. If voice disconnects, text alerts continue.
+
+Only one timer runs per server. Starting another replaces it. `/turnstop` cancels it. Running timers are cancelled on bot restart; use `/turnstart` again. Rerolling durations does not change an already running countdown.'''),
     'start': ('Getting started', '''Use slash commands in a server. Select a character from autocomplete, then fill in the remaining options. Type part of a name to search; Discord shows at most 25 autocomplete choices at once.
 
 **Choose a topic below**
 • **Character stats** — current Health, Armor, Stamina; add, subtract, reset, and baselines.
 • **Enemies** — create opponents and record damage by character.
-• **Skills & rolls** — skill modifiers and 2d10 checks.
+• **Skills & rolls** — skill modifiers and Cool/Drool checks.
 • **Initiative** — roll for all signed-in characters and create a turn order.
 • **Abilities & relics** — descriptions, loadouts, and weapon damage references.
 • **Music** — playback, playlists, queues, volume, and shuffle.
@@ -25,12 +34,15 @@ PAGES = {
 A roll does not automatically deal damage or spend resources. Record the final outcome using the tracker commands.
 
 **Privacy and access**
-Help and reference lookups are private by default. Add `show:true` to `/help`, `/skills`, `/abilities`, `/loadout`, `/damage`, `/relic`, `/party`, or `/shinobi` to share the result in the channel; `show:false` keeps it private. Sign-in and account authorization messages stay private. Rolls, character trackers, and enemy trackers post in the channel. Everyone can update trackers; character ownership restrictions are not configured. Each server has separate tracker data.
+Help and reference lookups are private by default. Add `visibility:Show` to `/help`, `/skills`, `/abilities`, `/loadout`, `/damage`, `/relic`, `/party`, or `/shinobi` to share the result in the channel; `visibility:Hide` keeps it private. Sign-in and account authorization messages stay private. Rolls, character trackers, and enemy trackers post in the channel. Everyone can update trackers; character ownership restrictions are not configured. Each server has separate tracker data.
 
 No voice connection is needed for campaign commands. Music playback and controls require joining the bot's voice channel (or a voice channel before it connects).
 
 `/help` opens this guide. `/help topic:stats` opens a topic directly. If the menu expires after 10 minutes, run `/help` again. AI image generation is currently disabled.'''),
     'signin': ('Character sign-in', '''`/signin character:Ryujin` saves your character in this server. Omit character from `/roll`, `/skills`, `/abilities`, `/loadout`, `/stats` commands, and `/enemy damage` to use it automatically. Roll skill suggestions also use your saved character. Discord does not visibly prefill the character field.
+
+**Session attendance**
+The DM runs `/starttime` at session start (requires Manage Server permission). Everyone then runs `/signin`, even if already signed in. Your first successful sign-in records arrival time and elapsed minutes/seconds after start. Switching characters or signing out does not reset that record. `/attendance` shows the latest session privately; add `visibility:Show` to share or `session:<id>` for history. Each `/starttime` creates a new session and keeps previous records. Times survive restarts. Penalties are decided by the DM; none are applied automatically.
 
 `/signout` clears your character and removes you from the roster.
 `/party` lists signed-in characters and Discord users in this server.
@@ -45,11 +57,11 @@ All signed-in characters participate, even if their Discord users are offline. O
 `/turnorder` shows the latest saved initiative order without rerolling or loading the Sheet. The order survives restarts and stays unchanged when players sign in or out. Run `/initiative` again to roll and save a fresh order. This does not advance turns, apply damage, or change character stats.'''),
     'dice': ('Custom dice & shinobi points', '''`/dice dice:3 faces:6 damage_healing:false` rolls 3d6 and shows every die plus the total. Use 1-100 dice with 2-1000 faces. This is separate from the 2d10 `/roll` command and adds no skill modifier.
 
-For damage or healing use `damage_healing:true`. Sign in first with `/signin`. If ANY individual die equals its number of faces (for example a 6 on d6), your signed-in character earns one shinobi point. Multiple maximum dice in one roll still award only one point. Ordinary rolls and `/roll` do not award points. No enemy damage or character healing is automatically applied.
+You must choose `damage_healing:true` or `damage_healing:false` on every roll. For damage or healing use `damage_healing:true`. Sign in first with `/signin`. If ANY individual die equals its number of faces (for example a 6 on d6), your signed-in character earns one shinobi point. Multiple maximum dice in one roll still award only one point. Ordinary rolls and `/roll` do not award points. No enemy damage or character healing is automatically applied.
 
 Each character can hold at most one point per server. Earning another while full displays: Should've used your shinobi point dumbass
 
-`/shinobi` shows each party character, user, and point balance. `/shinobi use:true` spends your signed-in character's point. Points survive restarts, switching characters, and sign-out. They belong to the character. Use `show:true` to share the shinobi display.'''),
+`/shinobi` shows each party character, user, and point balance. `/shinobi use:true` spends your signed-in character's point. Points survive restarts, switching characters, and sign-out. They belong to the character. Use `visibility:Show` to share the shinobi display.'''),
     'stats': ('Character stats', '''Track **Health, Armor, and Stamina** independently for each character.
 
 **Baseline** is the saved starting value. **Current** is the amount remaining after changes. You do not switch a Sheet cell or edit its formula when using the bot.
@@ -105,7 +117,7 @@ Privately displays **all** that character's recorded skill values and notes from
 Blank modifiers display **Not set**. Zero is a valid modifier. Long lists include a full text attachment.
 
 `/roll character:Ryujin skill:Willpower`
-Choose the character first, then a skill. Rolls two independent ten-sided dice and adds that character's skill modifier. Results appear in the channel with both dice, the modifier, and total.
+Choose the character first, then a skill. Starts at 2d10 and adds that character's skill modifier. Results show every die, the modifier, and total. All dice showing 10 triggers Rule of Cool: add one die to future skill rolls. All dice showing 1 triggers Rule of Drool: remove one die, to a minimum of 1d10. Changes apply after the triggering roll, across all skills for that character. Pools persist per server across restarts. `/restore character:Ryujin` resets the pool to 2d10; omit character to use your signed-in character.
 
 **Example**
 Dice 4 and 8, Willpower 6 → **4 + 8 + 6 = 18**.
@@ -223,8 +235,8 @@ def register_help_command(bot):
     @bot.tree.command(name='help', description='Detailed command guide with examples and a topic menu')
     @app_commands.guild_only()
     @app_commands.choices(topic=[app_commands.Choice(name=title, value=key) for key, (title, _) in PAGES.items()])
-    async def help_command(interaction: discord.Interaction, topic: str = 'start', show: bool = False):
+    async def help_command(interaction: discord.Interaction, topic: str = 'start', visibility: Visibility = Visibility.Hide):
         if topic not in PAGES:
             raise ValueError('Choose a help topic from the list.')
         await interaction.response.send_message(embed=help_embed(topic), view=HelpView(interaction.user.id, topic),
-                                                 ephemeral=not show, allowed_mentions=discord.AllowedMentions.none())
+                                                 ephemeral=visibility != Visibility.Show, allowed_mentions=discord.AllowedMentions.none())

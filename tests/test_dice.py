@@ -47,6 +47,9 @@ class DiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.bot.tracker.party_points(1), [(10, 'A', 0)])
 
     async def test_damage_requires_signin_before_dice_are_rolled(self):
+        self.assertTrue(self.bot.tree.get_command('dice')._params['damage_healing'].required)
+        with self.assertRaises(TypeError):
+            await self.bot.tree.get_command('dice').callback(self.interaction, 1, 6)
         with patch('dnd.dice.secrets.randbelow') as random:
             with self.assertRaisesRegex(ValueError, '/signin'):
                 await self.bot.tree.get_command('dice').callback(self.interaction, 1, 6, True)
@@ -55,18 +58,20 @@ class DiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_shinobi_display_lists_character_and_user(self):
         self.bot.tracker.signin(1, 10, 'A')
         await self.roll([5])
-        await self.bot.tree.get_command('shinobi').callback(self.interaction, show=True)
+        await self.bot.tree.get_command('shinobi').callback(self.interaction, visibility='show')
         sent = self.interaction.followup.send.call_args
         self.assertIn('Hero (<@10>): **1/1**', sent.args[0])
         self.assertFalse(sent.kwargs['ephemeral'])
 
     async def test_visibility_options_and_skills_public_or_private(self):
         for name in ('skills', 'abilities', 'loadout', 'damage', 'relic', 'help', 'party', 'shinobi'):
-            self.assertFalse(self.bot.tree.get_command(name)._params['show'].default)
-        for show in (False, True):
-            await self.bot.tree.get_command('skills').callback(self.interaction, 'Hero', show=show)
-            self.assertEqual(self.interaction.response.defer.call_args.kwargs['ephemeral'], not show)
-            self.assertEqual(self.interaction.followup.send.call_args.kwargs['ephemeral'], not show)
+            parameter = self.bot.tree.get_command(name)._params['visibility']
+            self.assertEqual(parameter.default, 'hide')
+            self.assertEqual([(c.name, c.value) for c in parameter.choices], [('Show', 'show'), ('Hide', 'hide')])
+        for visibility in ('hide', 'show'):
+            await self.bot.tree.get_command('skills').callback(self.interaction, 'Hero', visibility=visibility)
+            self.assertEqual(self.interaction.response.defer.call_args.kwargs['ephemeral'], visibility == 'hide')
+            self.assertEqual(self.interaction.followup.send.call_args.kwargs['ephemeral'], visibility == 'hide')
 
     async def test_points_survive_signout_and_multiple_awards_are_capped(self):
         self.bot.tracker.signin(1, 10, 'A')

@@ -41,6 +41,46 @@ class SigninTests(unittest.IsolatedAsyncioTestCase):
         tracker.signout(1, 10)
         self.assertEqual(tracker.signed_in(1), [])
 
+    async def test_attendance_preserves_first_arrival_and_session_history(self):
+        tracker = self.bot.tracker
+        tracker.signin(1, 10, 'A', arrived=90)
+        first, _ = tracker.start_session(1, 99, started=100)
+        self.assertEqual(tracker.attendance(1), (first, 100, []))
+        self.assertEqual(tracker.signin(1, 10, 'A', arrived=165), (100, 165))
+        tracker.signout(1, 10)
+        self.assertEqual(tracker.signin(1, 10, 'B', arrived=200), (100, 165))
+        self.assertEqual(Tracker(tracker.path).attendance(1), (first, 100, [(10, 'A', 165)]))
+        with self.assertRaises(ValueError):
+            tracker.attendance(2, first)
+        second, _ = tracker.start_session(1, 99, started=300)
+        self.assertEqual(tracker.attendance(1), (second, 300, []))
+        tracker.signin(1, 20, 'A', arrived=299)
+        with self.assertRaisesRegex(ValueError, 'already signed in'):
+            tracker.signin(1, 20, 'B', arrived=310)
+        self.assertEqual(tracker.attendance(1)[2], [])
+        self.assertEqual(tracker.signin(1, 10, 'B', arrived=360), (300, 360))
+        self.assertEqual(tracker.attendance(1, first)[2], [(10, 'A', 165)])
+
+    async def test_starttime_permissions_and_attendance_commands(self):
+        from discord import app_commands
+        from datetime import datetime, timezone
+        command = self.bot.tree.get_command('starttime')
+        self.interaction.permissions = SimpleNamespace(manage_guild=False)
+        with self.assertRaises(app_commands.MissingPermissions):
+            await command.checks[0](self.interaction)
+        self.interaction.permissions.manage_guild = True
+        self.assertTrue(command.checks[0](self.interaction))
+        self.interaction.created_at = datetime.fromtimestamp(100, timezone.utc)
+        await command.callback(self.interaction)
+        self.interaction.created_at = datetime.fromtimestamp(165, timezone.utc)
+        await self.bot.tree.get_command('signin').callback(self.interaction, 'Hero')
+        self.assertIn('1m 5s', self.interaction.followup.send.call_args.args[0])
+        await self.bot.tree.get_command('attendance').callback(self.interaction)
+        result = self.interaction.followup.send.call_args
+        self.assertTrue(result.kwargs['ephemeral'])
+        self.assertIn('Hero', result.args[0])
+        self.assertIn('1m 5s', result.args[0])
+
     async def test_signin_roster_signout_and_missing_default(self):
         await self.bot.tree.get_command('signin').callback(self.interaction, 'Hero')
         self.assertEqual(await resolve_character(self.bot, self.interaction), 'A')

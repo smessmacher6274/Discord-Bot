@@ -8,6 +8,7 @@ import secrets
 import time
 from dataclasses import dataclass
 import discord
+from dnd.visibility import Visibility
 from discord import app_commands
 from dnd.abilities import AbilityError, AbilityService, parse_catalog, required_text, table
 
@@ -84,13 +85,13 @@ def register_skill_commands(bot, service, character_service):
     @bot.tree.command(name='skills', description='Show all skill roll modifiers for a character')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose your character')
-    async def skills(interaction: discord.Interaction, character: str = None, show: bool = False):
-        await interaction.response.defer(ephemeral=not show)
+    async def skills(interaction: discord.Interaction, character: str = None, visibility: Visibility = Visibility.Hide):
+        await interaction.response.defer(ephemeral=visibility != Visibility.Show)
         catalog, records = await service.load()
         selected = catalog.character(await resolve_character(bot, interaction, character))
         embed, files = skill_response(selected, records[selected.id], service.source_url)
         try:
-            await interaction.followup.send(embed=embed, files=files, ephemeral=not show,
+            await interaction.followup.send(embed=embed, files=files, ephemeral=visibility != Visibility.Show,
                                             allowed_mentions=discord.AllowedMentions.none())
         finally:
             for file in files:
@@ -108,7 +109,20 @@ def register_skill_commands(bot, service, character_service):
         return [app_commands.Choice(name=name, value=name) for name in names
                 if current.casefold() in name.casefold()][:25]
 
-    @bot.tree.command(name='roll', description='Roll 2d10 plus a character’s skill modifier')
+    @bot.tree.command(name='restore', description='Reset a character’s Cool/Drool skill dice to 2d10')
+    @app_commands.guild_only()
+    @app_commands.describe(character='Choose your character, or use your signed-in character')
+    async def restore(interaction: discord.Interaction, character: str = None):
+        await interaction.response.defer()
+        catalog, _ = await service.load()
+        selected = catalog.character(await resolve_character(bot, interaction, character))
+        await asyncio.to_thread(bot.tracker.restore_skill_dice, interaction.guild_id, selected.id)
+        await interaction.followup.send(f'{selected.name} — Cool/Drool restored to **2d10**.',
+                                        allowed_mentions=discord.AllowedMentions.none())
+
+    restore.autocomplete('character')(character_autocomplete)
+
+    @bot.tree.command(name='roll', description='Roll a character’s skill dice with Rule of Cool/Drool')
     @app_commands.guild_only()
     @app_commands.describe(character='Choose your character', skill='Choose one of this character’s skills')
     async def roll(interaction: discord.Interaction, skill: str, character: str = None):
@@ -123,10 +137,14 @@ def register_skill_commands(bot, service, character_service):
         if not re.fullmatch(r'[+-]?[0-9]{1,9}', entry.modifier):
             raise AbilityError(f'{entry.name} needs a whole-number modifier to roll (for example +4, 0, or -2).')
         modifier = int(entry.modifier)
-        first, second = secrets.randbelow(10) + 1, secrets.randbelow(10) + 1
+        rolls, next_count, event = await asyncio.to_thread(
+            bot.tracker.roll_skill, interaction.guild_id, selected.id, secrets.randbelow)
+        description = (f'{len(rolls)}d10: **{" + ".join(map(str, rolls))}**\n'
+                       f'Modifier: **{modifier:+d}**\nTotal: **{sum(rolls) + modifier}**')
+        if event:
+            description += f'\n**{event}!** Next skill roll: **{next_count}d10**.'
         embed = discord.Embed(title=f'{selected.name} — {entry.name}',
-            description=f'2d10: **{first} + {second}**\nModifier: **{modifier:+d}**\n'
-                        f'Total: **{first + second + modifier}**')
+                              description=description)
         await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
     roll.autocomplete('character')(character_autocomplete)
