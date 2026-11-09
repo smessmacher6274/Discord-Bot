@@ -92,9 +92,10 @@ def http_json(url, *, data=None, token=None):
         raise ExportError('Spotify returned invalid JSON.') from None
 
 class SpotifyClient:
-    def __init__(self, client_id, tokens):
+    def __init__(self, client_id, tokens, on_refresh=None):
         self.client_id = client_id
-        self.tokens = tokens  # In memory only; never printed or persisted.
+        self.tokens = tokens  # Never print credentials.
+        self.on_refresh = on_refresh
 
     def refresh(self):
         refresh_token = self.tokens.get('refresh_token')
@@ -108,6 +109,8 @@ class SpotifyClient:
         if not updated.get('access_token'):
             raise ExportError('Spotify did not provide a refreshed access token.')
         self.tokens.update(updated)
+        if self.on_refresh:
+            self.on_refresh()
 
     def get(self, path):
         if not path.startswith('/playlists/'):
@@ -135,7 +138,9 @@ class SpotifyClient:
                 raise ExportError(f'Spotify request failed (HTTP {error.code}). Try signing in again or retry later.') from None
         raise ExportError('Spotify is still rate limiting requests. Retry later.')
 
-def authorize(client_id, timeout=180):
+def authorize(client_id, timeout=180, on_url=None, callback_host='127.0.0.1'):
+    if callback_host not in ('127.0.0.1', '0.0.0.0'):
+        raise ExportError('SPOTIFY_CALLBACK_HOST must be 127.0.0.1 or 0.0.0.0.')
     verifier, state = secrets.token_urlsafe(64), secrets.token_urlsafe(32)
     outcome = {}
     class CallbackServer(HTTPServer):
@@ -167,15 +172,18 @@ def authorize(client_id, timeout=180):
             self.end_headers()
             self.wfile.write(b'Spotify authorization received. You can close this tab and return to the exporter.')
     try:
-        server = CallbackServer(('127.0.0.1', 8888), Handler)
+        server = CallbackServer((callback_host, 8888), Handler)
     except OSError:
         raise ExportError('Port 8888 is in use. Close the other exporter or application and retry.') from None
     with server:
         server.timeout = 1
         url = authorization_url(client_id, verifier, state)
-        print('Sign in to Spotify in your browser. This grants read-only playlist access.')
-        if not webbrowser.open(url):
-            print('Open this authorization link locally:', url)
+        if on_url:
+            on_url(url)
+        else:
+            print('Sign in to Spotify in your browser. This grants read-only playlist access.')
+            if not webbrowser.open(url):
+                print('Open this authorization link locally:', url)
         deadline = time.monotonic() + timeout
         while not outcome and time.monotonic() < deadline:
             server.handle_request()

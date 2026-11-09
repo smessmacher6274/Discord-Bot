@@ -65,7 +65,7 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
             description = interaction.followup.send.call_args.kwargs['embed'].description
             self.assertIn(f'Rule of {event}', description)
             self.assertIn(f'Next skill roll: **{expected}d10**', description)
-        await bot.tree.get_command('restore').callback(interaction, character='Ryujin')
+        await bot.tree.get_command('restore').callback(interaction)
         with patch('dnd.skills.secrets.randbelow', side_effect=[3, 4]) as dice:
             await roll(interaction, skill='Willpower', character='Ryujin')
         self.assertEqual(dice.call_count, 2)
@@ -90,6 +90,22 @@ class SkillCommandTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(AbilityError, 'whole-number'):
                 await bot.tree.get_command('roll').callback(interaction, character='Ryujin', skill='Speed')
             dice.assert_not_called()
+
+    async def test_party_cool_applies_to_another_character_and_restore_needs_no_sheet(self):
+        bot = main.Bot()
+        bot.skills.gids = ('0', '123')
+        bot.skills.fetch_tabs = AsyncMock(return_value=(CHARACTERS, SKILLS))
+        interaction = SimpleNamespace(guild_id=1, response=SimpleNamespace(defer=AsyncMock()),
+                                      followup=SimpleNamespace(send=AsyncMock()))
+        with patch('dnd.skills.secrets.randbelow', side_effect=[9, 9]):
+            await bot.tree.get_command('roll').callback(interaction, skill='Navigation', character='Ryujin')
+        with patch('dnd.skills.secrets.randbelow', side_effect=[4, 4, 4]) as dice:
+            await bot.tree.get_command('roll').callback(interaction, skill='Navigation', character='Krusty')
+        self.assertEqual(dice.call_count, 3)
+        bot.skills.load = AsyncMock(side_effect=ValueError('Sheet unavailable'))
+        await bot.tree.get_command('restore').callback(interaction)
+        bot.skills.load.assert_not_awaited()
+        self.assertIn('everyone', interaction.followup.send.call_args.args[0])
 
     async def test_roll_uses_two_d10_and_selected_characters_modifier(self):
         bot = main.Bot()

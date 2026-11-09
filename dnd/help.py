@@ -12,6 +12,8 @@ Rolls exactly 2d10 plus the higher of Decipher and Reflex for every signed-in ch
 
 `/turnstart character:Ryujin` starts that signed-in character's saved duration. Join the bot's voice channel first, or it joins yours. Sounds play at the start, 10 seconds remaining, and the end. Text alerts mention the player. Everyone must be in voice to hear sounds. Chimes mix with music; resume paused music before starting a timer. If voice disconnects, text alerts continue.
 
+`/turntimer sound` plays a test chime without starting a timer. If silent, check this bot's user volume, local mute, server mute, and Speak permission. Music from another bot does not verify this bot's sound.
+
 Only one timer runs per server. Starting another replaces it. `/turnstop` cancels it. Running timers are cancelled on bot restart; use `/turnstart` again. Rerolling durations does not change an already running countdown.'''),
     'start': ('Getting started', '''Use slash commands in a server. Select a character from autocomplete, then fill in the remaining options. Type part of a name to search; Discord shows at most 25 autocomplete choices at once.
 
@@ -74,6 +76,9 @@ Each character can hold at most one point per server. Earning another while full
 `/stats view character:Ryujin`
 Shows current and baseline values for all three stats. On first use, numeric values in the Skills tab initialize missing baselines. Missing stats display **Not set**, rather than assuming zero.
 
+`/stats party`
+Shows Health and Stamina for every signed-in character in this server together in the channel. Each stat shows current / baseline, using the same saved values as individual stats. Missing values show **Not set**. Viewing does not reset current values.
+
 `/stats subtract character:Ryujin stat:Health amount:2`
 Subtracts a positive amount from current only. Health 10 becomes 8; baseline stays 10. Use Stamina for resource spending or Armor to track armor loss.
 
@@ -122,7 +127,7 @@ Privately displays **all** that character's recorded skill values and notes from
 Blank modifiers display **Not set**. Zero is a valid modifier. Long lists include a full text attachment.
 
 `/roll character:Ryujin skill:Willpower`
-Choose the character first, then a skill. Starts at 2d10 and adds that character's skill modifier. Results show every die, the modifier, and total. All dice showing 10 triggers Rule of Cool: add one die to future skill rolls. All dice showing 1 triggers Rule of Drool: remove one die, to a minimum of 1d10. Changes apply after the triggering roll, across all skills for that character. Pools persist per server across restarts. `/restore character:Ryujin` resets the pool to 2d10; omit character to use your signed-in character.
+Choose the character first, then a skill. Starts at 2d10 and adds that character's skill modifier. Results show every die, the modifier, and total. All dice showing 10 triggers Rule of Cool: add one die to future skill rolls. All dice showing 1 triggers Rule of Drool: remove one die, to a minimum of 1d10. Changes apply after the triggering roll to the whole party: everyone shares one skill dice pool in this server, including players who sign in later. The pool survives restarts. `/restore` resets everyone to 2d10 and requires no character selection. Old individual pools are replaced by a shared pool starting at 2d10.
 
 **Example**
 Dice 4 and 8, Willpower 6 → **4 + 8 + 6 = 18**.
@@ -192,12 +197,12 @@ Exports the playlist without playing it. Download the JSON files and later attac
 Shortcut for the owner-only automatic import-and-play flow. It adds to the existing queue.
 
 **First connection**
-The bot owner must sign in to Spotify and approve access. Playback continues after authorization. On a headless Pi, use the browser URL printed by the bot and the localhost callback tunnel configured during setup. Spotify supplies playlist metadata; audio playback uses the bot's available playback sources.
+The bot owner receives a private sign-in link in Discord. Open it in your browser and approve access within 3 minutes. For a headless Pi, connect the SSH callback tunnel before opening the link (see SPOTIFY_SETUP.md). Playback continues after authorization. Spotify supplies playlist metadata; audio playback uses the bot's available playback sources.
 
 `/spotifydisconnect`
-Forgets the bot's connected Spotify session. It does not remove previously downloaded files or revoke permission on Spotify itself. To revoke permission, use Spotify's account Apps page.
+Forgets the bot's connected Spotify session and deletes its saved refresh token. It does not remove previously downloaded files or revoke permission on Spotify itself. To revoke permission, use Spotify's account Apps page.
 
-Spotify authorization is stored in memory and is forgotten on bot restart. `/spotifyplaylist` has a 15-second per-user cooldown. Very large playlists may need export-only mode and separate file imports; the automatic flow has a 1,000-song limit.
+Spotify's refresh token is saved privately in the data folder so restarts reuse your connection. Keep that folder mounted persistently in Docker. Spotify may still require authorization when access expires or is revoked. `/spotifyplaylist` has a 15-second per-user cooldown. Very large playlists may need export-only mode and separate file imports; the automatic flow has a 1,000-song limit.
 
 If a request fails, check the playlist link, access permissions, sign-in, and voice channel before retrying.'''),
 }

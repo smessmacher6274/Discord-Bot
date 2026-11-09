@@ -20,15 +20,19 @@ class TrackerTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_skill_dice_persist_and_are_isolated(self):
+    def test_skill_dice_persist_are_shared_by_party_and_isolated_by_server(self):
         self.assertEqual(self.tracker.roll_skill(1, 'CHR1', lambda _: 9),
                          ([10, 10], 3, 'Rule of Cool'))
         reopened = Tracker(self.path)
         self.assertEqual(reopened.roll_skill(1, 'CHR1', lambda _: 4), ([5, 5, 5], 3, None))
         self.assertEqual(reopened.roll_skill(2, 'CHR1', lambda _: 4), ([5, 5], 2, None))
-        self.assertEqual(reopened.roll_skill(1, 'CHR2', lambda _: 4), ([5, 5], 2, None))
-        reopened.restore_skill_dice(1, 'CHR1')
+        self.assertEqual(reopened.roll_skill(1, 'CHR2', lambda _: 4), ([5, 5, 5], 3, None))
+        self.assertEqual(reopened.roll_skill(1, 'CHR2', lambda _: 0), ([1, 1, 1], 2, 'Rule of Drool'))
+        self.assertEqual(reopened.roll_skill(1, 'CHR1', lambda _: 0), ([1, 1], 1, 'Rule of Drool'))
+        self.assertEqual(reopened.roll_skill(1, 'CHR2', lambda _: 0), ([1], 1, 'Rule of Drool'))
+        reopened.restore_skill_dice(1)
         self.assertEqual(reopened.roll_skill(1, 'CHR1', lambda _: 4), ([5, 5], 2, None))
+        self.assertEqual(reopened.roll_skill(1, 'CHR2', lambda _: 4), ([5, 5], 2, None))
 
     def test_stats_persist_baselines_and_resets(self):
         seed = {'Health': 10, 'Armor': 17}
@@ -106,6 +110,41 @@ class TrackerCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Current: **10**', interaction.followup.send.call_args.kwargs['embed'].description)
         choices = await command.get_command('view')._params['character'].autocomplete(interaction, 'ryu')
         self.assertEqual([choice.value for choice in choices], ['Ryujin'])
+
+    async def test_party_stats_show_saved_values_and_only_server_roster(self):
+        catalog = parse_catalog('Character,Character ID\nRyujin,CHR1\nAmy,CHR2\nHidden,CHR3\n',
+                                'Ability ID,Ability Name,Description\n', 'Character ID,Ability ID\n')
+        self.bot.skills.load.return_value = (catalog, {
+            'CHR1': [Skill('Health', '10'), Skill('Stamina', '8')],
+            'CHR2': [Skill('Health', '0')], 'CHR3': [Skill('Health', '99')]})
+        tracker = self.bot.tracker
+        tracker.signin(1, 1, 'CHR1')
+        tracker.signin(1, 2, 'CHR2')
+        tracker.signin(2, 3, 'CHR3')
+        tracker.resources(1, 'CHR1', {'Health': 10, 'Stamina': 8}, 'subtract', 'Health', 3)
+        tracker.resources(1, 'CHR1', {}, 'subtract', 'Stamina', 9)
+        interaction = self.interaction()
+        await self.bot.tree.get_command('stats').get_command('party').callback(interaction)
+        payload = interaction.followup.send.call_args.kwargs
+        text = payload['embed'].description
+        self.assertIn('Health: **7 / 10**', text)
+        self.assertIn('Stamina: **-1 / 8**', text)
+        self.assertIn('**Amy** — Health: **0 / 0** | Stamina: **Not set**', text)
+        self.assertLess(text.index('Amy'), text.index('Ryujin'))
+        self.assertNotIn('Hidden', text)
+        self.assertNotIn('Armor', text)
+        self.assertNotIn('ephemeral', payload)
+        self.assertEqual(tracker.resources(1, 'CHR1', {})['Health'], (7, 10))
+
+    async def test_party_stats_empty_roster_and_removed_character(self):
+        command = self.bot.tree.get_command('stats').get_command('party')
+        interaction = self.interaction()
+        await command.callback(interaction)
+        self.bot.skills.load.assert_not_awaited()
+        self.assertIn('No characters', interaction.followup.send.call_args.kwargs['embed'].description)
+        self.bot.tracker.signin(1, 1, 'removed')
+        await command.callback(interaction)
+        self.assertIn('removed from Sheet', interaction.followup.send.call_args.kwargs['embed'].description)
 
     async def test_enemy_commands_and_attribution(self):
         command = self.bot.tree.get_command('enemy')

@@ -23,8 +23,8 @@ Spotify audio and does not automatically start Discord playback.
 ### From Discord
 
 Use `/spotifyplaylist link:https://open.spotify.com/playlist/YOUR_PLAYLIST_ID`.
-The first call after a bot restart opens Spotify authorization in a browser on the
-bot's PC. Sign in and approve read-only playlist access; the command then returns
+When authorization is needed, the bot sends a private sign-in link in Discord.
+Open it in your browser and approve read-only playlist access within three minutes; the command then returns
 JSON playlist files and a source/skipped-entry report privately in Discord.
 Join a voice channel first: `/spotifyplaylist link` queues and plays the converted
 playlist automatically by default, while still returning the export files privately.
@@ -35,10 +35,33 @@ The existing upcoming queue is preserved; requested songs append in playlist ord
 Autoplay is limited to 1000 upcoming songs, and larger exports can be imported in parts.
 
 The command is restricted to the bot application owner because it uses one personal
-Spotify session. Tokens stay in memory until restart or `/spotifydisconnect`;
-subsequent exports reuse the session and refresh expired access tokens. Command
+Spotify session. A refresh token is saved to `data/spotify-session.json`, excluded
+from Git, so restarts reuse the connection and refresh expired access tokens.
+`/spotifydisconnect` deletes the saved token. Spotify can still require sign-in
+if the refresh token expires or access is revoked. Keep the data folder on a
+persistent Docker volume or bind mount, just like the tracker database. Command
 exports are sent from memory and create no files on the bot PC. Other server members
 cannot use this connected account. The Client ID and callback setup above are required.
+
+### Signing in from Windows while the bot runs on the Pi
+
+For a Docker container using **host networking**, leave this running in Windows
+PowerShell before requesting Spotify authorization:
+
+```powershell
+ssh -N -L 8888:127.0.0.1:8888 cochiloco@cochilocopi
+```
+
+Run `/spotifyplaylist link:URL autoplay:false` in Discord and open the private
+Spotify link on that same Windows computer. Log in and approve access. The browser
+redirects through the SSH tunnel to the bot's callback on the Pi. Close the tunnel
+with Ctrl+C after authorization finishes. Future bot restarts reuse the saved
+connection; the tunnel is needed only when browser authorization is required.
+
+Keep `SPOTIFY_CALLBACK_HOST=127.0.0.1` for host networking. For Docker bridge
+networking, set `SPOTIFY_CALLBACK_HOST=0.0.0.0` in the container environment and
+publish `127.0.0.1:8888:8888` on the host, then use the same SSH tunnel. The
+registered Spotify redirect URI stays `http://127.0.0.1:8888/callback` in both cases.
 
 ### From a terminal
 

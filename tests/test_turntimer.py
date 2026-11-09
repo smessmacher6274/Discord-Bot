@@ -63,8 +63,51 @@ class TurnRollTests(unittest.TestCase):
         voice.stop.assert_not_called()
         voice.play.assert_not_called()
 
+    def test_idle_chime_contains_audible_pcm_and_reports_playback_error(self):
+        voice = MagicMock()
+        voice.is_paused.return_value = False
+        voice.is_playing.return_value = False
+        on_error = MagicMock()
+        play_chime(voice, 'start', on_error=on_error)
+        source = voice.play.call_args.args[0]
+        frames = []
+        while frame := source.read():
+            self.assertEqual(len(frame), 3840)
+            frames.extend(array('h', frame))
+        self.assertGreater(max(frames), 8000)
+        self.assertLess(min(frames), -8000)
+        error = RuntimeError('Audio failed')
+        with self.assertLogs(level='ERROR'):
+            voice.play.call_args.kwargs['after'](error)
+        on_error.assert_called_once_with(error)
+
+    def test_server_mute_and_missing_speak_permission_are_reported(self):
+        voice = MagicMock()
+        voice.is_paused.return_value = False
+        voice.guild.me.voice.mute = True
+        with self.assertRaisesRegex(ValueError, 'muted'):
+            play_chime(voice, 'start')
+        voice.guild.me.voice.mute = False
+        voice.channel.permissions_for.return_value.speak = False
+        with self.assertRaisesRegex(ValueError, 'Speak permission'):
+            play_chime(voice, 'start')
+
 
 class TurnTimerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_test_sound_does_not_start_timer(self):
+        bot = main.Bot()
+        voice = MagicMock()
+        voice.channel.id = 7
+        interaction = SimpleNamespace(guild_id=1, guild=SimpleNamespace(voice_client=voice),
+            user=SimpleNamespace(voice=SimpleNamespace(channel=SimpleNamespace(id=7))),
+            channel=SimpleNamespace(send=AsyncMock()), response=SimpleNamespace(defer=AsyncMock()),
+            followup=SimpleNamespace(send=AsyncMock()))
+        with patch('dnd.turntimer.play_chime') as chime:
+            await bot.tree.get_command('turntimer').get_command('sound').callback(interaction)
+        chime.assert_called_once()
+        self.assertEqual(bot.turn_timers.tasks, {})
+        self.assertTrue(interaction.followup.send.call_args.kwargs['ephemeral'])
+
     async def test_warning_and_end_deadlines_and_mentions(self):
         timers = TurnTimers()
         channel = SimpleNamespace(send=AsyncMock())

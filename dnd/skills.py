@@ -109,18 +109,13 @@ def register_skill_commands(bot, service, character_service):
         return [app_commands.Choice(name=name, value=name) for name in names
                 if current.casefold() in name.casefold()][:25]
 
-    @bot.tree.command(name='restore', description='Reset a character’s Cool/Drool skill dice to 2d10')
+    @bot.tree.command(name='restore', description='Reset the whole party’s Cool/Drool skill dice to 2d10')
     @app_commands.guild_only()
-    @app_commands.describe(character='Choose your character, or use your signed-in character')
-    async def restore(interaction: discord.Interaction, character: str = None):
+    async def restore(interaction: discord.Interaction):
         await interaction.response.defer()
-        catalog, _ = await service.load()
-        selected = catalog.character(await resolve_character(bot, interaction, character))
-        await asyncio.to_thread(bot.tracker.restore_skill_dice, interaction.guild_id, selected.id)
-        await interaction.followup.send(f'{selected.name} — Cool/Drool restored to **2d10**.',
+        await asyncio.to_thread(bot.tracker.restore_skill_dice, interaction.guild_id)
+        await interaction.followup.send('Party Cool/Drool restored to **2d10** for everyone.',
                                         allowed_mentions=discord.AllowedMentions.none())
-
-    restore.autocomplete('character')(character_autocomplete)
 
     @bot.tree.command(name='roll', description='Roll a character’s skill dice with Rule of Cool/Drool')
     @app_commands.guild_only()
@@ -142,7 +137,7 @@ def register_skill_commands(bot, service, character_service):
         description = (f'{len(rolls)}d10: **{" + ".join(map(str, rolls))}**\n'
                        f'Modifier: **{modifier:+d}**\nTotal: **{sum(rolls) + modifier}**')
         if event:
-            description += f'\n**{event}!** Next skill roll: **{next_count}d10**.'
+            description += f'\n**{event}!** Next skill roll: **{next_count}d10** for the whole party.'
         embed = discord.Embed(title=f'{selected.name} — {entry.name}',
                               description=description)
         await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())

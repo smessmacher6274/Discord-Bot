@@ -11,6 +11,7 @@ CATALOG = ROOT / os.getenv('CATALOG_PATH', 'catalog.json')
 AUDIO_ROOT = (ROOT / os.getenv('AUDIO_ROOT', 'audio')).resolve()
 YOUTUBE_NODE_PATH = os.getenv('YOUTUBE_NODE_PATH') or None
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID', '').strip()
+SPOTIFY_CALLBACK_HOST = os.getenv('SPOTIFY_CALLBACK_HOST', '127.0.0.1').strip()
 DND_SHEET_ID = os.getenv('DND_SHEET_ID', '')
 DND_CHARACTERS_GID = os.getenv('DND_CHARACTERS_GID', '0')
 DND_ABILITIES_GID = os.getenv('DND_ABILITIES_GID', '592372328')

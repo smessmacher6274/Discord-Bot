@@ -45,6 +45,8 @@ class Tracker:
                 CREATE TABLE IF NOT EXISTS skill_dice (
                     guild INTEGER, character TEXT, dice INTEGER NOT NULL CHECK(dice >= 1),
                     PRIMARY KEY (guild, character));
+                CREATE TABLE IF NOT EXISTS party_skill_dice (
+                    guild INTEGER PRIMARY KEY, dice INTEGER NOT NULL CHECK(dice >= 1));
                 CREATE TABLE IF NOT EXISTS shinobi_points (
                     guild INTEGER, character TEXT, points INTEGER NOT NULL CHECK(points IN (0,1)),
                     PRIMARY KEY (guild, character));
@@ -79,22 +81,21 @@ class Tracker:
 
     def roll_skill(self, guild, character, randbelow):
         with self.transaction() as db:
-            row = db.execute('SELECT dice FROM skill_dice WHERE guild=? AND character=?',
-                             (guild, character)).fetchone()
+            row = db.execute('SELECT dice FROM party_skill_dice WHERE guild=?', (guild,)).fetchone()
             count = row['dice'] if row else 2
             rolls = [randbelow(10) + 1 for _ in range(count)]
             event = 'Rule of Cool' if all(die == 10 for die in rolls) else (
                 'Rule of Drool' if all(die == 1 for die in rolls) else None)
             next_count = count + 1 if event == 'Rule of Cool' else (
                 max(1, count - 1) if event == 'Rule of Drool' else count)
-            db.execute('INSERT INTO skill_dice VALUES (?,?,?) ON CONFLICT(guild,character) '
-                       'DO UPDATE SET dice=excluded.dice', (guild, character, next_count))
+            db.execute('INSERT INTO party_skill_dice VALUES (?,?) ON CONFLICT(guild) '
+                       'DO UPDATE SET dice=excluded.dice', (guild, next_count))
             return rolls, next_count, event
 
-    def restore_skill_dice(self, guild, character):
+    def restore_skill_dice(self, guild):
         with self.transaction() as db:
-            db.execute('INSERT INTO skill_dice VALUES (?,?,2) ON CONFLICT(guild,character) '
-                       'DO UPDATE SET dice=2', (guild, character))
+            db.execute('INSERT INTO party_skill_dice VALUES (?,2) ON CONFLICT(guild) '
+                       'DO UPDATE SET dice=2', (guild,))
 
     def start_session(self, guild, actor, started=None):
         started = int(time.time() if started is None else started)
@@ -331,6 +332,33 @@ def register_tracker_commands(bot, tracker, skills):
     @stats.command(name='view', description='Show current and baseline character stats')
     async def view(interaction: discord.Interaction, character: str = None):
         await change(interaction, character)
+
+    @stats.command(name='party', description='Show Health and Stamina for all signed-in characters')
+    async def party(interaction: discord.Interaction):
+        await interaction.response.defer()
+        roster = await asyncio.to_thread(tracker.signed_in, interaction.guild_id)
+        if not roster:
+            await send_tracker(interaction, 'Party — Health & Stamina',
+                               'No characters are signed in. Use /signin first.')
+            return
+        catalog, records = await skills.load()
+        lines = []
+        for _, identifier in sorted(roster, key=lambda row: (
+                catalog.characters[row[1]].name.casefold() if row[1] in catalog.characters else row[1].casefold())):
+            selected = catalog.characters.get(identifier)
+            label = selected.name if selected else f'{identifier} (removed from Sheet)'
+            values = await asyncio.to_thread(tracker.resources, interaction.guild_id, identifier,
+                                            sheet_baselines(records.get(identifier, [])))
+            parts = []
+            for name in ('Health', 'Stamina'):
+                if name in values:
+                    current, baseline = values[name]
+                    parts.append(f'{name}: **{current} / {baseline}**')
+                else:
+                    parts.append(f'{name}: **Not set**')
+            lines.append(f'**{discord.utils.escape_markdown(label)}** — ' + ' | '.join(parts))
+        lines.append('\nValues show current / baseline. Set missing values with `/stats baseline`.')
+        await send_tracker(interaction, 'Party — Health & Stamina', '\n'.join(lines))
 
     @stats.command(name='add', description='Add to a character’s current stat')
     @app_commands.choices(stat=stat_choices)

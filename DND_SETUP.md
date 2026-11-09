@@ -154,11 +154,12 @@ No damage or healing is automatically recorded. See `/help topic:dice`.
 The damage_healing true/false choice is required on every `/dice` command.
 Visibility is a single Show/Hide choice; Hide remains the default.
 
-Rule of Cool/Drool: `/roll` saves one dice pool per character per server across
-restarts. All dice showing 10 adds one die to future skill rolls; all dice showing
+Rule of Cool/Drool: `/roll` saves one shared party dice pool per server across
+restarts. A trigger from any character changes future skill rolls for everyone. All dice showing 10 adds one die to future skill rolls; all dice showing
 1 removes one, with a minimum of 1d10. The triggering roll uses the original pool.
-`/restore character:Ryujin` resets that pool to 2d10 (omit character to use your
-signed-in character). These rules apply to skill `/roll` only.
+`/restore` resets the shared party pool to 2d10 without character selection.
+Old individual pools are no longer used; the new shared pool starts at 2d10.
+These rules apply to skill `/roll` only.
 
 Attendance: `/starttime` starts a new session immediately. It requires Manage
 Server permission (default visibility and runtime check). The DM can further
@@ -199,3 +200,14 @@ DM sign-in correction: `/kickout player:@User` clears that player's character
 selection and roster entry in this server. Requires Manage Server permission.
 The result is private; the player can run `/signin` again. Attendance history and
 first-arrival times stay saved. This command does not remove members from Discord.
+
+`/stats party` posts Health and Stamina for all signed-in characters in this
+server together. Values are current / baseline, using the existing tracker.
+Missing baselines initialize from numeric Skills values just like `/stats view`;
+existing current values remain unchanged. Missing values display Not set.
+
+`/turntimer sound` plays a standalone test chime without starting a timer.
+Timer chimes include a brief lead-in and longer tones. The bot reports server
+mute, Stage suppression, missing Speak permission, and idle audio playback errors.
+If voice connects but sounds remain silent, check Whittster’sDisciple’s user
+volume and local mute setting in Discord.

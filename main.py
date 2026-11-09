@@ -38,7 +38,8 @@ class Bot(commands.Bot):
                          allowed_mentions=discord.AllowedMentions.none())
         self.players = {}
         register_help_command(self)
-        self.spotify = SpotifySession(config.SPOTIFY_CLIENT_ID)
+        self.spotify = SpotifySession(config.SPOTIFY_CLIENT_ID, config.ROOT / 'data' / 'spotify-session.json',
+                                      config.SPOTIFY_CALLBACK_HOST)
         self.abilities = AbilityService(config.DND_SHEET_ID, config.DND_CHARACTERS_GID,
                                         config.DND_ABILITIES_GID, config.DND_CHARACTER_ABILITIES_GID)
         register_ability_commands(self, self.abilities)
@@ -130,8 +131,15 @@ async def spotify_request(interaction, link, autoplay):
     if autoplay:
         player_for(interaction)  # Fail before authorization if the user is not in voice.
     if bot.spotify.client is None:
-        await interaction.followup.send('Sign in and approve Spotify playlist access in the browser opening on the bot’s PC. I’ll continue automatically after authorization.', ephemeral=True)
-    result = await bot.spotify.export(link)
+        async def sign_in(url):
+            await interaction.followup.send(
+                f'[Sign in to Spotify and approve playlist access]({url}). '
+                'Open this on your computer within 3 minutes. For a Pi, connect the SSH callback tunnel first. '
+                'Your connection will be remembered across restarts.', ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none())
+        result = await bot.spotify.export(link, on_authorize=sign_in)
+    else:
+        result = await bot.spotify.export(link)
     queued, unavailable = await queue_spotify_export(interaction, result) if autoplay else (0, [])
     return result, queued, unavailable
 

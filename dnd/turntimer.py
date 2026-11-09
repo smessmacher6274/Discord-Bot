@@ -46,11 +46,12 @@ def roll_turn_times(roster, catalog, records):
 
 def tone(kind):
     frequencies = {'start': [660, 880], 'warning': [880, 880, 880], 'end': [660, 440, 220]}[kind]
-    samples = array('h')
+    # Brief lead-in lets a newly speaking voice connection begin transmitting.
+    samples = array('h', [0] * (48000 * 2 * 3 // 10))
     for frequency in frequencies:
-        for i in range(12000):
-            envelope = min(1, i / 240, (12000 - i) / 240)
-            value = int(6000 * envelope * math.sin(2 * math.pi * frequency * i / 48000))
+        for i in range(21600):
+            envelope = min(1, i / 240, (21600 - i) / 240)
+            value = int(9000 * envelope * math.sin(2 * math.pi * frequency * i / 48000))
             samples.extend((value, value))
         samples.extend([0] * 4800)
     return samples.tobytes()
@@ -82,11 +83,19 @@ class ChimeSource(discord.AudioSource):
             self.base.cleanup()
 
 
-def play_chime(voice, kind):
+def play_chime(voice, kind, on_error=None):
     if not voice or not voice.is_connected():
         raise ValueError('Voice disconnected; sound could not play.')
     if voice.is_paused():
         raise ValueError('Resume paused music to hear timer sounds.')
+    member = getattr(getattr(voice, 'guild', None), 'me', None)
+    state = getattr(member, 'voice', None)
+    if getattr(state, 'mute', False) is True or getattr(state, 'self_mute', False) is True:
+        raise ValueError('The bot is muted in voice. Unmute Whittster’sDisciple before playing timer sounds.')
+    if getattr(state, 'suppress', False) is True:
+        raise ValueError('Allow the bot to speak on the Stage before playing timer sounds.')
+    if member and voice.channel.permissions_for(member).speak is False:
+        raise ValueError('Whittster’sDisciple needs Speak permission in this voice channel.')
     data = tone(kind)
     if voice.is_playing():
         source = voice.source
@@ -99,7 +108,41 @@ def play_chime(voice, kind):
     else:
         source = ChimeSource()
         source.add(data)
-        voice.play(source)
+        def complete(error):
+            if error:
+                logging.error('Timer audio playback failed: %s', type(error).__name__,
+                              exc_info=(type(error), error, error.__traceback__))
+                if on_error:
+                    on_error(error)
+        voice.play(source, after=complete)
+
+
+async def timer_voice(interaction):
+    state = getattr(interaction.user, 'voice', None)
+    if not state or not state.channel:
+        raise ValueError('Join a voice channel to use timer sounds.')
+    voice = interaction.guild.voice_client
+    if voice and voice.is_connected() and voice.channel.id != state.channel.id:
+        raise ValueError('Join the bot’s voice channel first.')
+    if not voice or not voice.is_connected():
+        try:
+            voice = await state.channel.connect(timeout=20, reconnect=True, self_deaf=True)
+        except TimeoutError:
+            raise ValueError('Discord voice connection timed out. The turn timer did not start; try again.') from None
+    return voice
+
+
+def sound_error_reporter(channel):
+    loop = asyncio.get_running_loop()
+    async def report():
+        try:
+            await channel.send('Timer sound playback failed. Text alerts continue; check the bot logs.')
+        except discord.HTTPException:
+            logging.exception('Could not report timer audio failure')
+    def on_error(error):
+        if not loop.is_closed():
+            loop.call_soon_threadsafe(lambda: asyncio.create_task(report()))
+    return on_error
 
 
 class TurnTimers:
@@ -122,7 +165,7 @@ class TurnTimers:
             await channel.send(f'<@{row["user"]}> — {row["name"]}: {text}',
                                allowed_mentions=discord.AllowedMentions(users=[discord.Object(row['user'])]))
             try:
-                play_chime(voice, kind)
+                play_chime(voice, kind, on_error=sound_error_reporter(channel))
             except Exception:
                 logging.exception('Turn timer sound failed')
                 await channel.send('Timer sound unavailable; check the bot’s voice connection.')
@@ -167,6 +210,18 @@ def register_turntimer_commands(bot, tracker, skills):
         await send_tracker(interaction, 'Turn durations', '\n'.join(
             f'{row["name"]}: **{row["minutes"]} min**' for row in rows) or 'Use /turntimer roll first.')
 
+    @group.command(name='sound', description='Test the turn timer chime in your voice channel')
+    @app_commands.guild_only()
+    async def sound(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        async with timers.locks.setdefault(interaction.guild_id, asyncio.Lock()):
+            voice = await timer_voice(interaction)
+            play_chime(voice, 'start', on_error=sound_error_reporter(interaction.channel))
+        await interaction.followup.send(
+            'Test chime sent to Whittster’sDisciple’s voice channel. If silent, right-click '
+            'Whittster’sDisciple in voice and check its user volume and mute setting. '
+            'This does not start or change a turn timer.', ephemeral=True)
+
     bot.tree.add_command(group)
 
     @bot.tree.command(name='turnstart', description='Start a character’s rolled turn timer with voice alerts')
@@ -183,17 +238,8 @@ def register_turntimer_commands(bot, tracker, skills):
             if user is None or row is None:
                 raise ValueError('That character must be signed in and included in /turntimer roll first.')
             row = dict(row, user=user)
-            state = getattr(interaction.user, 'voice', None)
-            if not state or not state.channel:
-                raise ValueError('Join a voice channel to start a turn with sounds.')
-            voice = interaction.guild.voice_client
-            if voice and voice.is_connected() and voice.channel.id != state.channel.id:
-                raise ValueError('Join the bot’s voice channel first.')
-            if not voice or not voice.is_connected():
-                voice = await state.channel.connect(timeout=20, reconnect=True, self_deaf=True)
-            if voice.is_paused():
-                raise ValueError('Resume paused music before starting a turn timer.')
-            play_chime(voice, 'start')
+            voice = await timer_voice(interaction)
+            play_chime(voice, 'start', on_error=sound_error_reporter(interaction.channel))
             await timers.stop(interaction.guild_id)
             deadline = asyncio.get_running_loop().time() + row['minutes'] * 60
             timers.tasks[interaction.guild_id] = asyncio.create_task(timers.countdown(

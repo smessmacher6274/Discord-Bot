@@ -1,15 +1,70 @@
 import unittest
 import json
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from music.spotify_session import SpotifySession, PlaylistExport
-from spotify_export import ExportError
+from spotify_export import ExportError, SpotifyClient
 import main
 
 ID = 'A' * 22
 LINK = 'https://open.spotify.com/playlist/' + ID
 
 class SpotifySessionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_refresh_token_survives_restart_and_disconnect_removes_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'spotify-session.json'
+            session = SpotifySession('C' * 32, path)
+            client = SpotifyClient('C' * 32, {'access_token': 'access-private', 'refresh_token': 'refresh-private'})
+            fetched = ('Playlist', [{'title': 'Song', 'artist': 'Artist'}], [], LINK)
+            with patch('music.spotify_session.authorize', return_value=client), \
+                 patch('music.spotify_session.fetch_playlist', return_value=fetched):
+                await session.export(LINK)
+            self.assertNotIn('access-private', path.read_text())
+            self.assertEqual(json.loads(path.read_text())['refresh_token'], 'refresh-private')
+            session.clear()
+            self.assertTrue(path.exists())
+            reopened = SpotifySession('C' * 32, path)
+            with patch('music.spotify_session.authorize') as authorize, \
+                 patch('spotify_export.http_json', return_value={'access_token': 'new-access', 'refresh_token': 'rotated'}), \
+                 patch('music.spotify_session.fetch_playlist', return_value=fetched):
+                await reopened.export(LINK)
+            authorize.assert_not_called()
+            self.assertEqual(json.loads(path.read_text())['refresh_token'], 'rotated')
+            await reopened.disconnect()
+            self.assertFalse(path.exists())
+            self.assertEqual(SpotifySession('C' * 32, path).client, None)
+
+    async def test_expired_saved_token_is_removed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'spotify-session.json'
+            path.write_text(json.dumps({'client_id': 'C' * 32, 'refresh_token': 'expired'}))
+            session = SpotifySession('C' * 32, path)
+            with patch.object(session.client, 'refresh', side_effect=ExportError('Authorization expired or revoked')):
+                with self.assertRaises(ExportError):
+                    await session.export(LINK)
+            self.assertFalse(path.exists())
+            self.assertIsNone(session.client)
+
+    async def test_auth_link_delivered_to_async_notifier(self):
+        session = SpotifySession('C' * 32)
+        notify = AsyncMock()
+        def authorize(client_id, on_url, callback_host):
+            on_url('https://accounts.spotify.com/authorize?state=test')
+            return SpotifyClient(client_id, {'access_token': 'access'})
+        with patch('music.spotify_session.authorize', side_effect=authorize), \
+             patch('music.spotify_session.fetch_playlist', return_value=(
+                 'Playlist', [{'title': 'Song', 'artist': 'Artist'}], [], LINK)):
+            await session.export(LINK, on_authorize=notify)
+        notify.assert_awaited_once_with('https://accounts.spotify.com/authorize?state=test')
+
+    async def test_saved_connection_is_bound_to_client_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'spotify-session.json'
+            path.write_text(json.dumps({'client_id': 'other-app', 'refresh_token': 'old'}))
+            self.assertIsNone(SpotifySession('C' * 32, path).client)
+
     async def test_authorizes_once_and_forgets_tokens(self):
         client = MagicMock(tokens={'access_token': 'private'})
         session = SpotifySession('C' * 32)
@@ -47,6 +102,21 @@ class SpotifySessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.tokens, {})
 
 class SpotifyCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_headless_signin_link_is_private(self):
+        interaction = self.interaction()
+        result = PlaylistExport('Playlist', 1, 0, LINK, [])
+        async def export(link, on_authorize):
+            await on_authorize('https://accounts.spotify.com/authorize?state=test')
+            return result
+        session = MagicMock(client=None, export=AsyncMock(side_effect=export))
+        with patch.object(main.bot, 'is_owner', AsyncMock(return_value=True)), \
+             patch.object(main.bot, 'spotify', session):
+            await main.spotify_request(interaction, LINK, False)
+        payload = interaction.followup.send.call_args
+        self.assertTrue(payload.kwargs['ephemeral'])
+        self.assertIn('https://accounts.spotify.com/authorize?', payload.args[0])
+        self.assertNotIn('browser opening', payload.args[0])
+
     def interaction(self):
         return SimpleNamespace(user=SimpleNamespace(id=42),
                                response=SimpleNamespace(defer=AsyncMock()),
